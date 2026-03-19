@@ -17,7 +17,14 @@
  *
  * Single tap (n=1) falls through to the base keymap — no gesture is needed.
  *
- * Hold is a special case: tapdance with max_presses=1, only a hold gesture.
+ * Hold is a special case: tapdance with only a hold gesture.
+ *
+ * Each gesture is fully independent — no shared state between tap counts.
+ * A gesture self-resolves when it can determine its own outcome:
+ *   - press_count > target_presses → can never match → fail
+ *   - press_count == target_presses && !key_down && is_hold → released
+ *     the target press without holding → fail
+ *   - press_count == target_presses && !key_down && !is_hold → tap matched
  *
  * Usage:
  *
@@ -53,19 +60,12 @@
 #endif
 
 typedef struct {
-    uint8_t  trigger_key;     // Dense key index (matches event_id for KEY events)
-    uint8_t  max_presses;     // Highest press count with gesture behavior
-    uint8_t  press_count;     // Current press count (1-indexed, readable after activation)
-    bool     key_down : 1;
-    uint16_t last_update_time; // Dedup: only first callback per event updates shared state
-    bool     last_update_pressed : 1;
+    uint8_t trigger_key;     // Dense key index (matches event_id for KEY events)
+    uint8_t target_presses;  // Activate at this press count
+    bool    is_hold;         // true = activate on hold; false = activate on release
+    uint8_t press_count;     // Current press count (1-indexed)
+    bool    key_down;
 } tapdance_data_t;
-
-typedef struct {
-    uint8_t         target_presses;  // Activate at this press count
-    bool            is_hold;         // true = activate on hold; false = activate on release
-    tapdance_data_t *shared;
-} tapdance_per_tap_t;
 
 gesture_timeout_t tapdance_gesture_callback(gesture_id_t id, gesture_query_t query, const gesture_event_t *event, uint16_t remaining_ms, void *user_data);
 
@@ -86,22 +86,21 @@ uint16_t get_tapdance_timeout(gesture_id_t id, const gesture_event_t *trigger_ev
 gesture_timeout_t get_tapdance_hold_on_event(gesture_id_t id, const gesture_event_t *event, uint16_t remaining_ms);
 
 /*******************************************************************************
- * Hold convenience (tapdance with max_presses=1)
+ * Hold convenience (tapdance with only a hold gesture)
  ******************************************************************************/
 
-#define DEFINE_HOLD(name, trigger) DEFINE_TAPDANCE(name, trigger, 1)
-#define HOLD_GESTURE(name)         TAPDANCE_HOLD(name, 1)
+#define DEFINE_HOLD(name, trigger) \
+    _TD_DEFINE_HOLD(name, 1, trigger)
+
+#define HOLD_GESTURE(name) TAPDANCE_HOLD(name, 1)
 
 /*******************************************************************************
  * Tapdance macros
  ******************************************************************************/
 
-/* Define shared tap-dance data and all per-gesture variants. */
+/* Define all gesture data for a tapdance with the given max presses. */
 #define DEFINE_TAPDANCE(name, trigger, max) \
-    tapdance_data_t _td_shared_##name = { \
-        .trigger_key = trigger, .max_presses = max \
-    }; \
-    _TD_DEFINE_ALL_##max(name)
+    _TD_DEFINE_ALL_##max(name, trigger)
 
 /* Single gesture array entries. */
 #define TAPDANCE_TAP(name, n)  GESTURE(&tapdance_gesture_callback, &_td_tap_##name##_##n)
@@ -115,27 +114,27 @@ gesture_timeout_t get_tapdance_hold_on_event(gesture_id_t id, const gesture_even
  * Internal macro machinery
  ******************************************************************************/
 
-#define _TD_DEFINE_HOLD(name, n) \
-    tapdance_per_tap_t _td_hold_##name##_##n = { \
-        .target_presses = n, .is_hold = true, .shared = &_td_shared_##name \
+#define _TD_DEFINE_HOLD(name, n, trigger) \
+    tapdance_data_t _td_hold_##name##_##n = { \
+        .trigger_key = trigger, .target_presses = n, .is_hold = true \
     };
 
-#define _TD_DEFINE_TAP(name, n) \
-    tapdance_per_tap_t _td_tap_##name##_##n = { \
-        .target_presses = n, .is_hold = false, .shared = &_td_shared_##name \
+#define _TD_DEFINE_TAP(name, n, trigger) \
+    tapdance_data_t _td_tap_##name##_##n = { \
+        .trigger_key = trigger, .target_presses = n, .is_hold = false \
     };
 
-#define _TD_DEFINE_PAIR(name, n) \
-    _TD_DEFINE_TAP(name, n) \
-    _TD_DEFINE_HOLD(name, n)
+#define _TD_DEFINE_PAIR(name, n, trigger) \
+    _TD_DEFINE_TAP(name, n, trigger) \
+    _TD_DEFINE_HOLD(name, n, trigger)
 
-/* _TD_DEFINE_ALL_N: define all per-tap data for max_presses=N.
+/* _TD_DEFINE_ALL_N: define all gesture data for max_presses=N.
  * N=1: only HOLD(1). N>1: HOLD(1) + TAP/HOLD pairs for 2..N. */
-#define _TD_DEFINE_ALL_1(name) _TD_DEFINE_HOLD(name, 1)
-#define _TD_DEFINE_ALL_2(name) _TD_DEFINE_ALL_1(name) _TD_DEFINE_PAIR(name, 2)
-#define _TD_DEFINE_ALL_3(name) _TD_DEFINE_ALL_2(name) _TD_DEFINE_PAIR(name, 3)
-#define _TD_DEFINE_ALL_4(name) _TD_DEFINE_ALL_3(name) _TD_DEFINE_PAIR(name, 4)
-#define _TD_DEFINE_ALL_5(name) _TD_DEFINE_ALL_4(name) _TD_DEFINE_PAIR(name, 5)
+#define _TD_DEFINE_ALL_1(name, trigger) _TD_DEFINE_HOLD(name, 1, trigger)
+#define _TD_DEFINE_ALL_2(name, trigger) _TD_DEFINE_ALL_1(name, trigger) _TD_DEFINE_PAIR(name, 2, trigger)
+#define _TD_DEFINE_ALL_3(name, trigger) _TD_DEFINE_ALL_2(name, trigger) _TD_DEFINE_PAIR(name, 3, trigger)
+#define _TD_DEFINE_ALL_4(name, trigger) _TD_DEFINE_ALL_3(name, trigger) _TD_DEFINE_PAIR(name, 4, trigger)
+#define _TD_DEFINE_ALL_5(name, trigger) _TD_DEFINE_ALL_4(name, trigger) _TD_DEFINE_PAIR(name, 5, trigger)
 
 /* _TD_GESTURES_N: all gesture entries for max_presses=N. */
 #define _TD_GESTURES_1(name) TAPDANCE_HOLD(name, 1)
