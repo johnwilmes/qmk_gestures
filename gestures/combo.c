@@ -40,7 +40,7 @@ __attribute__((weak)) combo_active_update_t get_active_combo_release(gesture_id_
     return combo_release_triggers(event, which_key, prev_state);
 }
 
-gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state, const gesture_event_t *event, uint16_t remaining_ms, void *user_data) {
+gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state, const gesture_event_t *event, uint16_t remaining_ms, uint8_t current_outcome, void *user_data) {
     combo_data_t *data = (combo_data_t *)user_data;
     int8_t which_key = (event->type == EVENT_TYPE_KEY)
         ? combo_find_key(data->keys, event->event_id)

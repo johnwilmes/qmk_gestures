@@ -14,6 +14,12 @@
 #include "gesture_test.h"
 #include "tapdance.h"
 
+/* Event IDs for gesture virtual keys */
+enum gesture_events {
+    HOLD_EVENTS(th_b),
+    HOLD_EVENTS(th_d),
+};
+
 /* Hold definitions */
 DEFINE_HOLD(th_b, KEY_POS(0, 1));
 DEFINE_HOLD(th_d, KEY_POS(0, 3));
@@ -43,8 +49,8 @@ DEFINE_DENSE_LAYER(layer0_key_layer, layer0_keys);
 
 /* Layer 0 gesture mappings: only hold keycodes */
 static const sparse_entry_t PROGMEM layer0_gesture_entries[] = {
-    {0, KC_LSFT},  /* th_b hold → left shift */
-    {1, KC_LCTL},  /* th_d hold → left ctrl */
+    {GE_HOLD_th_b, KC_LSFT},  /* th_b hold → left shift */
+    {GE_HOLD_th_d, KC_LCTL},  /* th_d hold → left ctrl */
 };
 DEFINE_SPARSE_LAYER(layer0_gesture_layer, layer0_gesture_entries);
 

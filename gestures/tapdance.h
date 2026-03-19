@@ -5,49 +5,30 @@
 /*******************************************************************************
  * Tap Dance / Hold Gestures
  *
- * A physical key can produce different virtual keys depending on how it is
- * pressed:
- *   - Single tap: the base keymap keycode (no gesture needed)
- *   - Hold (nth press held past timeout): TAPDANCE_HOLD(name, n)
- *   - Multi-tap (n complete press-release cycles): TAPDANCE_TAP(name, n)
+ * A single multi-outcome gesture per physical key that resolves to different
+ * virtual keys depending on how it is pressed:
+ *   - Single tap: falls through to the base keymap (no gesture activation)
+ *   - Hold (nth press held past timeout): outcome hold(n)
+ *   - Multi-tap (n complete press-release cycles): outcome tap(n)
  *
- * The parameter `n` always means "number of presses" for both tap and hold:
- *   - TAPDANCE_TAP(td, 3)  = 3 complete press-release cycles
- *   - TAPDANCE_HOLD(td, 2) = tap once, hold the 2nd press
- *
- * Single tap (n=1) falls through to the base keymap — no gesture is needed.
- *
- * Hold is a special case: tapdance with only a hold gesture.
- *
- * Each gesture is fully independent — no shared state between tap counts.
- * A gesture self-resolves when it can determine its own outcome:
- *   - press_count > target_presses → can never match → fail
- *   - press_count == target_presses && !key_down && is_hold → released
- *     the target press without holding → fail
- *   - press_count == target_presses && !key_down && !is_hold → tap matched
+ * Hold is a special case: tapdance with max_presses=1.
  *
  * Usage:
  *
- *   // Simple hold (tap = base key):
- *   DEFINE_HOLD(home_a, KEY_INDEX_A)
- *
- *   gesture_t gestures[] = {
- *       HOLD_GESTURE(home_a),    // 1 gesture
+ *   // Event ID enum (shared with combos):
+ *   enum gesture_events {
+ *       HOLD_EVENTS(home_a),            // 1 event ID
+ *       TAPDANCE_EVENTS(my_td, 3),      // 5 event IDs: hold1, tap2, hold2, tap3, hold3
  *   };
  *
- *   // Full tap dance (max 3 presses):
+ *   // Data definitions:
+ *   DEFINE_HOLD(home_a, KEY_INDEX_A)
  *   DEFINE_TAPDANCE(my_td, KEY_INDEX_X, 3)
  *
+ *   // Gesture array (1 gesture per key):
  *   gesture_t gestures[] = {
- *       TAPDANCE_GESTURES(my_td, 3),
- *       // expands to: HOLD(1), TAP(2), HOLD(2), TAP(3), HOLD(3)
- *   };
- *
- *   // Or pick individual gestures:
- *   gesture_t gestures[] = {
- *       TAPDANCE_HOLD(my_td, 1),   // hold 1st press
- *       TAPDANCE_TAP(my_td, 2),    // double-tap
- *       TAPDANCE_TAP(my_td, 3),    // triple-tap
+ *       HOLD_GESTURE(home_a),        // 1 outcome
+ *       TAPDANCE_GESTURE(my_td, 3),  // 5 outcomes
  *   };
  ******************************************************************************/
 
@@ -61,84 +42,85 @@
 
 typedef struct {
     uint8_t trigger_key;     // Dense key index (matches event_id for KEY events)
-    uint8_t target_presses;  // Activate at this press count
-    bool    is_hold;         // true = activate on hold; false = activate on release
+    uint8_t max_presses;     // Maximum press count for this tapdance
     uint8_t press_count;     // Current press count (1-indexed)
-    bool    key_down;
+    bool    key_down;        // Whether trigger key is currently held
 } tapdance_data_t;
 
-gesture_timeout_t tapdance_gesture_callback(gesture_id_t id, gesture_query_t query, const gesture_event_t *event, uint16_t remaining_ms, void *user_data);
+gesture_timeout_t tapdance_gesture_callback(gesture_id_t id, gesture_query_t query, const gesture_event_t *event, uint16_t remaining_ms, uint8_t current_outcome, void *user_data);
 
 /* TAPDANCE BEHAVIOR OVERRIDES */
 
 /* Returns the timeout for this gesture. Default: TAPDANCE_TIMEOUT. */
 uint16_t get_tapdance_timeout(gesture_id_t id, const gesture_event_t *trigger_event);
 
-/* Called when a non-trigger event arrives while a hold variant is PARTIAL.
- * Controls whether the hold should ripen early, cancel, or continue waiting.
+/* Called on every event while the tapdance is PARTIAL or COMPLETE.
+ * The callback has already updated press_count/key_down before calling this.
  *
- * Return values:
- *   GESTURE_TIMEOUT(0, true)             -> ripen hold (activate now)
- *   GESTURE_TIMEOUT(0, false)            -> cancel hold
- *   GESTURE_TIMEOUT(remaining_ms, true)  -> continue waiting (default)
+ * @param id           Gesture ID
+ * @param event        The event that just arrived
+ * @param data         Tapdance state (press_count, key_down already updated)
+ * @param remaining_ms Time remaining on current timeout
+ * @return             Override result, or {.timeout = GESTURE_TIMEOUT_NEVER}
+ *                     to use the default behavior
  *
- * Default: continue waiting. */
-gesture_timeout_t get_tapdance_hold_on_event(gesture_id_t id, const gesture_event_t *event, uint16_t remaining_ms);
+ * Default: returns GESTURE_TIMEOUT(GESTURE_TIMEOUT_NEVER, 0) (use default). */
+gesture_timeout_t get_tapdance_on_event(gesture_id_t id, const gesture_event_t *event, const tapdance_data_t *data, uint16_t remaining_ms);
+
+/* Convenience: standard "hold on other key" behavior for use in overrides.
+ * Returns ripen-hold when a non-trigger key press arrives while key is held. */
+gesture_timeout_t tapdance_hold_on_other_key(const gesture_event_t *event, const tapdance_data_t *data, uint16_t remaining_ms);
 
 /*******************************************************************************
- * Hold convenience (tapdance with only a hold gesture)
+ * Event ID enum macros
+ *
+ * These generate enum constants for gesture event IDs. Use in an enum
+ * alongside COMBO_EVENTS to assign unique event IDs to all gestures.
+ *
+ * HOLD_EVENTS(name)           → GE_HOLD_name                    (1 event)
+ * TAPDANCE_EVENTS(name, max)  → GE_TD_name_HOLD1, ...           (2*max-1 events)
+ *   Layout: HOLD(1), TAP(2), HOLD(2), ..., TAP(max), HOLD(max)
+ ******************************************************************************/
+
+#define HOLD_EVENTS(name)              GE_HOLD_##name
+
+#define TAPDANCE_EVENTS(name, max)     _TD_EVENTS_##max(name)
+#define _TD_EVENTS_1(name)             GE_TD_##name##_HOLD1
+#define _TD_EVENTS_2(name)             _TD_EVENTS_1(name), GE_TD_##name##_TAP2, GE_TD_##name##_HOLD2
+#define _TD_EVENTS_3(name)             _TD_EVENTS_2(name), GE_TD_##name##_TAP3, GE_TD_##name##_HOLD3
+#define _TD_EVENTS_4(name)             _TD_EVENTS_3(name), GE_TD_##name##_TAP4, GE_TD_##name##_HOLD4
+#define _TD_EVENTS_5(name)             _TD_EVENTS_4(name), GE_TD_##name##_TAP5, GE_TD_##name##_HOLD5
+
+/*******************************************************************************
+ * Outcome encoding
+ *
+ * For max_presses=N, there are 2N-1 outcomes:
+ *   0 = cancel (no match)
+ *   1 = hold(1), 2 = tap(2), 3 = hold(2), 4 = tap(3), 5 = hold(3), ...
+ *   General: hold(n) = 2n-1, tap(n) = 2(n-1) for n>=2
+ *
+ * The TAPDANCE_EVENTS enum generates constants in the same order.
+ ******************************************************************************/
+
+/*******************************************************************************
+ * Hold convenience (tapdance with max_presses=1, only a hold gesture)
  ******************************************************************************/
 
 #define DEFINE_HOLD(name, trigger) \
-    _TD_DEFINE_HOLD(name, 1, trigger)
+    tapdance_data_t _td_data_##name = { .trigger_key = trigger, .max_presses = 1 };
 
-#define HOLD_GESTURE(name) TAPDANCE_HOLD(name, 1)
+#define HOLD_GESTURE(name) \
+    GESTURE(&tapdance_gesture_callback, &_td_data_##name, GE_HOLD_##name, 1)
 
 /*******************************************************************************
  * Tapdance macros
  ******************************************************************************/
 
-/* Define all gesture data for a tapdance with the given max presses. */
+/* Define tapdance data for a key with the given max presses. */
 #define DEFINE_TAPDANCE(name, trigger, max) \
-    _TD_DEFINE_ALL_##max(name, trigger)
+    tapdance_data_t _td_data_##name = { .trigger_key = trigger, .max_presses = max };
 
-/* Single gesture array entries. */
-#define TAPDANCE_TAP(name, n)  GESTURE(&tapdance_gesture_callback, &_td_tap_##name##_##n)
-#define TAPDANCE_HOLD(name, n) GESTURE(&tapdance_gesture_callback, &_td_hold_##name##_##n)
-
-/* All gestures for a tapdance, lowest count first:
- *   HOLD(1), TAP(2), HOLD(2), ..., TAP(max), HOLD(max) */
-#define TAPDANCE_GESTURES(name, max) _TD_GESTURES_##max(name)
-
-/*******************************************************************************
- * Internal macro machinery
- ******************************************************************************/
-
-#define _TD_DEFINE_HOLD(name, n, trigger) \
-    tapdance_data_t _td_hold_##name##_##n = { \
-        .trigger_key = trigger, .target_presses = n, .is_hold = true \
-    };
-
-#define _TD_DEFINE_TAP(name, n, trigger) \
-    tapdance_data_t _td_tap_##name##_##n = { \
-        .trigger_key = trigger, .target_presses = n, .is_hold = false \
-    };
-
-#define _TD_DEFINE_PAIR(name, n, trigger) \
-    _TD_DEFINE_TAP(name, n, trigger) \
-    _TD_DEFINE_HOLD(name, n, trigger)
-
-/* _TD_DEFINE_ALL_N: define all gesture data for max_presses=N.
- * N=1: only HOLD(1). N>1: HOLD(1) + TAP/HOLD pairs for 2..N. */
-#define _TD_DEFINE_ALL_1(name, trigger) _TD_DEFINE_HOLD(name, 1, trigger)
-#define _TD_DEFINE_ALL_2(name, trigger) _TD_DEFINE_ALL_1(name, trigger) _TD_DEFINE_PAIR(name, 2, trigger)
-#define _TD_DEFINE_ALL_3(name, trigger) _TD_DEFINE_ALL_2(name, trigger) _TD_DEFINE_PAIR(name, 3, trigger)
-#define _TD_DEFINE_ALL_4(name, trigger) _TD_DEFINE_ALL_3(name, trigger) _TD_DEFINE_PAIR(name, 4, trigger)
-#define _TD_DEFINE_ALL_5(name, trigger) _TD_DEFINE_ALL_4(name, trigger) _TD_DEFINE_PAIR(name, 5, trigger)
-
-/* _TD_GESTURES_N: all gesture entries for max_presses=N. */
-#define _TD_GESTURES_1(name) TAPDANCE_HOLD(name, 1)
-#define _TD_GESTURES_2(name) _TD_GESTURES_1(name), TAPDANCE_TAP(name, 2), TAPDANCE_HOLD(name, 2)
-#define _TD_GESTURES_3(name) _TD_GESTURES_2(name), TAPDANCE_TAP(name, 3), TAPDANCE_HOLD(name, 3)
-#define _TD_GESTURES_4(name) _TD_GESTURES_3(name), TAPDANCE_TAP(name, 4), TAPDANCE_HOLD(name, 4)
-#define _TD_GESTURES_5(name) _TD_GESTURES_4(name), TAPDANCE_TAP(name, 5), TAPDANCE_HOLD(name, 5)
+/* Single multi-outcome gesture entry for a tapdance.
+ * num_outcomes = 2*max - 1. */
+#define TAPDANCE_GESTURE(name, max) \
+    GESTURE(&tapdance_gesture_callback, &_td_data_##name, GE_TD_##name##_HOLD1, 2*(max)-1)

@@ -16,6 +16,12 @@
 #include "gesture_test.h"
 #include "tapdance.h"
 
+/* Event IDs for gesture virtual keys */
+enum gesture_events {
+    HOLD_EVENTS(mo1),
+    HOLD_EVENTS(tg2),
+};
+
 DEFINE_HOLD(mo1, KEY_POS(1, 0));
 DEFINE_HOLD(tg2, KEY_POS(1, 1));
 
@@ -59,8 +65,8 @@ DEFINE_SPARSE_LAYER(layer2_key, layer2_key_entries);
 /* --- Gesture layers --- */
 
 static const sparse_entry_t PROGMEM layer0_gesture_entries[] = {
-    {0, MO(1)},    /* mo1 hold → momentary layer 1 */
-    {1, TG(2)},    /* tg2 hold → toggle layer 2 */
+    {GE_HOLD_mo1, MO(1)},    /* mo1 hold → momentary layer 1 */
+    {GE_HOLD_tg2, TG(2)},    /* tg2 hold → toggle layer 2 */
 };
 DEFINE_SPARSE_LAYER(layer0_gesture, layer0_gesture_entries);
 

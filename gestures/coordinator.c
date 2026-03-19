@@ -464,15 +464,21 @@ static bool notify_active_gestures(gesture_event_t event) {
         }
 
         uint16_t remaining = compute_remaining(g->expiry, event.time);
-        gesture_timeout_t result = g->callback(id, GS_QUERY_ACTIVE, &event, remaining, g->user_data);
+        gesture_timeout_t result = g->callback(id, GS_QUERY_ACTIVE, &event, remaining, g->timeout_outcome, g->user_data);
 
+        // Update expiry without overwriting timeout_outcome (which must
+        // persist from activation through the ACTIVE phase)
         if (result.timeout == 0) {
             g->expiry = event.time;
-            update_next_timeout(g->expiry);
+        } else if (result.timeout == GESTURE_TIMEOUT_NEVER) {
+            g->expiry = GESTURE_TIMEOUT_NEVER;
         } else {
-            gesture_set_expiry(g, event.time, result);
-            update_next_timeout(g->expiry);
+            g->expiry = event.time + result.timeout;
+            if (g->expiry == GESTURE_TIMEOUT_NEVER) {
+                g->expiry = GESTURE_TIMEOUT_NEVER - 1;
+            }
         }
+        update_next_timeout(g->expiry);
 
         // Trigger events (key presses and encoder ticks) can be consumed
         if (result.outcome &&
@@ -618,7 +624,7 @@ static void scan_inactive_gestures(gesture_event_t event) {
             continue;
         }
 
-        gesture_timeout_t result = g->callback(id, GS_QUERY_INITIAL, &event, 0, g->user_data);
+        gesture_timeout_t result = g->callback(id, GS_QUERY_INITIAL, &event, 0, 0, g->user_data);
 
         if (result.timeout == 0 && !result.outcome) {
             prev_id = id;
@@ -639,7 +645,8 @@ static void scan_inactive_gestures(gesture_event_t event) {
             continue;
         }
 
-        // timeout == 0 && outcome == true: wants immediate activation
+        // timeout == 0 && outcome != 0: wants immediate activation
+        g->timeout_outcome = result.outcome;
         best_candidate = id;
         prev_id = id;
         id = next_id;
@@ -666,10 +673,11 @@ static void scan_partial_gestures(gesture_event_t event) {
 
         uint16_t remaining = compute_remaining(g->expiry, event.time);
         gesture_query_t query = g->timeout_outcome ? GS_QUERY_COMPLETE : GS_QUERY_PARTIAL;
-        gesture_timeout_t result = g->callback(id, query, &event, remaining, g->user_data);
+        gesture_timeout_t result = g->callback(id, query, &event, remaining, g->timeout_outcome, g->user_data);
 
         if (result.timeout == 0) {
             if (result.outcome) {
+                g->timeout_outcome = result.outcome;
                 if (best_candidate == GESTURE_NULL_ID || id > best_candidate) {
                     best_candidate = id;
                     candidate_changed = true;
@@ -735,9 +743,10 @@ static void activate_gesture(gesture_id_t gesture_id) {
     gesture_t *g = gesture_get(gesture_id);
     uint16_t activation_time = buffer_head_event()->event.time;
 
-    // Emit virtual press immediately
+    // Emit virtual press using base_event_id + outcome offset
+    gesture_event_id_t emit_id = g->base_event_id + (g->timeout_outcome > 0 ? g->timeout_outcome - 1 : 0);
     gesture_event_t virtual_press = {
-        .event_id = gesture_id,
+        .event_id = emit_id,
         .time = activation_time,
         .type = EVENT_TYPE_GESTURE,
         .pressed = true,
@@ -756,7 +765,7 @@ static void activate_gesture(gesture_id_t gesture_id) {
     // First call: ACTIVATION_INITIAL with the triggering press at buffer head
     gesture_buffered_event_t *trigger = buffer_head_event();
     last_result = g->callback(gesture_id, GS_QUERY_ACTIVATION_INITIAL,
-                              &trigger->event, 0, g->user_data);
+                              &trigger->event, 0, g->timeout_outcome, g->user_data);
     if (last_result.timeout == 0) {
         scan_done = true;
     }
@@ -785,7 +794,7 @@ static void activate_gesture(gesture_id_t gesture_id) {
         }
 
         last_result = g->callback(gesture_id, GS_QUERY_ACTIVATION_REPLAY,
-                                  &be->event, 0, g->user_data);
+                                  &be->event, 0, g->timeout_outcome, g->user_data);
         last_event_time = be->event.time;
 
         if (last_result.outcome &&
@@ -798,8 +807,16 @@ static void activate_gesture(gesture_id_t gesture_id) {
         }
     }
 
-    // Set expiry from last result
-    gesture_set_expiry(g, last_event_time, last_result);
+    // Set expiry from last result without overwriting timeout_outcome
+    // (timeout_outcome was set during resolution and must persist through ACTIVE)
+    if (last_result.timeout == GESTURE_TIMEOUT_NEVER) {
+        g->expiry = GESTURE_TIMEOUT_NEVER;
+    } else {
+        g->expiry = last_event_time + last_result.timeout;
+        if (g->expiry == GESTURE_TIMEOUT_NEVER) {
+            g->expiry = GESTURE_TIMEOUT_NEVER - 1;
+        }
+    }
     update_next_timeout(g->expiry);
 
     // Triggering press was at head; don't let other gestures trigger on it
@@ -818,8 +835,9 @@ static void deactivate_gesture(gesture_id_t gesture_id) {
     if (release_time == GESTURE_TIMEOUT_NEVER) {
         release_time = timer_read();
     }
+    gesture_event_id_t emit_id = g->base_event_id + (g->timeout_outcome > 0 ? g->timeout_outcome - 1 : 0);
     gesture_event_t virtual_release = {
-        .event_id = gesture_id,
+        .event_id = emit_id,
         .time = release_time,
         .type = EVENT_TYPE_GESTURE,
         .pressed = false,

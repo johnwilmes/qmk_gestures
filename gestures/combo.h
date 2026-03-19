@@ -39,7 +39,7 @@ gesture_timeout_t get_unripe_combo_timeout(gesture_id_t combo, const gesture_eve
 combo_active_update_t get_ripe_combo_activation(gesture_id_t combo, const gesture_event_t *event, int8_t which_key, combo_active_mask_t prev_state);
 combo_active_update_t get_active_combo_release(gesture_id_t combo, const gesture_event_t *event, int8_t which_key, combo_active_mask_t prev_state);
 
-gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state, const gesture_event_t *event, uint16_t remaining_ms, void *user_data);
+gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state, const gesture_event_t *event, uint16_t remaining_ms, uint8_t current_outcome, void *user_data);
 
 /* Define combo trigger keys using user-defined key position names.
  * Example: DEFINE_COMBO_KEYS(my_combo, POS_L_INDEX_H, POS_L_MIDDLE_H) */
@@ -47,4 +47,7 @@ gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state,
     const uint8_t PROGMEM GS_DATA_COMBO_KEYS_##name[] = {COUNT_ARGS(__VA_ARGS__), __VA_ARGS__}; \
     combo_data_t GS_DATA_COMBO_USER_DATA_##name = {.active_state = 0, .keys = &(GS_DATA_COMBO_KEYS_##name)[0]};
 
-#define COMBO_GESTURE(name) GESTURE(&combo_gesture_callback, &GS_DATA_COMBO_USER_DATA_##name)
+/* Event ID enum macro: generates GE_COMBO_name (1 event) */
+#define COMBO_EVENTS(name)  GE_COMBO_##name
+
+#define COMBO_GESTURE(name) GESTURE(&combo_gesture_callback, &GS_DATA_COMBO_USER_DATA_##name, GE_COMBO_##name, 1)

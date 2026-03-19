@@ -14,10 +14,15 @@
 #include "gesture_test.h"
 #include "tapdance.h"
 
+/* Event IDs for gesture virtual keys */
+enum gesture_events {
+    TAPDANCE_EVENTS(td, 2),
+};
+
 DEFINE_TAPDANCE(td, KEY_POS(0, 1), 2);
 
 static gesture_t gestures[] = {
-    TAPDANCE_GESTURES(td, 2),  /* 0: hold(1), 1: tap(2), 2: hold(2) */
+    TAPDANCE_GESTURE(td, 2),  /* single gesture: hold(1), tap(2), hold(2) */
 };
 
 gesture_t *gesture_get(gesture_id_t index) {
@@ -39,9 +44,9 @@ DEFINE_DENSE_LAYER(layer0_key_layer, layer0_keys);
 
 /* Layer 0 gesture mappings */
 static const sparse_entry_t PROGMEM layer0_gesture_entries[] = {
-    {0, KC_LSFT},  /* hold(1) → left shift */
-    {1, KC_X},     /* tap(2) → X (double-tap) */
-    {2, KC_LCTL},  /* hold(2) → left ctrl (tap-then-hold) */
+    {GE_TD_td_HOLD1, KC_LSFT},  /* hold(1) → left shift */
+    {GE_TD_td_TAP2,  KC_X},     /* tap(2) → X (double-tap) */
+    {GE_TD_td_HOLD2, KC_LCTL},  /* hold(2) → left ctrl (tap-then-hold) */
 };
 DEFINE_SPARSE_LAYER(layer0_gesture_layer, layer0_gesture_entries);
 

@@ -40,8 +40,14 @@
 #    define GESTURE_BUFFER_SIZE 12
 #endif
 
-/* Null gesture ID for linked list termination (must fit in 13-bit next field) */
-#define GESTURE_NULL_ID ((gesture_id_t)0x1FFF)
+/* Maximum number of gesture events (virtual key IDs).
+ * Defaults to MAX_GESTURES. Override when multi-outcome gestures need more IDs. */
+#ifndef NUM_GESTURE_EVENTS
+#    define NUM_GESTURE_EVENTS MAX_GESTURES
+#endif
+
+/* Null gesture ID for linked list termination (must fit in 10-bit next field) */
+#define GESTURE_NULL_ID ((gesture_id_t)0x3FF)
 
 /* Timeout value meaning "never timeout" */
 #define GESTURE_TIMEOUT_NEVER ((uint16_t)0xFFFF)
@@ -127,40 +133,50 @@ typedef enum {
  *
  * GS_QUERY_INITIAL/GS_QUERY_PARTIAL/GS_QUERY_COMPLETE:
  *   Before timeout, stay/become GS_PARTIAL
- *      outcome=false  -> After timeout, transition to GS_INACTIVE
- *      outcome=true   -> After timeout, transition to GS_ACTIVE
+ *      outcome=0      -> After timeout, transition to GS_INACTIVE (cancel)
+ *      outcome=1..15  -> After timeout, transition to GS_ACTIVE (which outcome)
  *
  * GS_QUERY_ACTIVATION_INITIAL/GS_QUERY_ACTIVATION_REPLAY/GS_QUERY_ACTIVE:
  *   Release events: outcome is ignored
  *   Press events:
- *      outcome=false  -> Do NOT consume this press
- *      outcome=true   -> Do consume this press
+ *      outcome=0      -> Do NOT consume this press
+ *      outcome!=0     -> Do consume this press
  */
 typedef struct {
-    uint16_t timeout;  // ms until state change (0=immediate, 0xFFFF=never)
-    bool     outcome;  // Action-specific flag (see above)
+    uint16_t timeout;   // ms until state change (0=immediate, 0xFFFF=never)
+    uint8_t  outcome;   // 0=cancel/don't-consume, nonzero=activate/consume
 } gesture_timeout_t;
 
 /**
- * Gesture ID, also serves as priority (higher ID = higher priority)
+ * Gesture ID: array index, used for linked lists and callback identification.
+ * Also serves as priority (higher ID = higher priority).
  */
 typedef uint16_t gesture_id_t;
 
 /**
+ * Gesture event ID: the virtual key ID emitted when a gesture activates.
+ * For multi-outcome gestures, the emitted event_id is
+ * base_event_id + timeout_outcome - 1.
+ */
+typedef uint16_t gesture_event_id_t;
+
+/**
  * Gesture callback function type.
  *
- * @param id            Id of the gesture
- * @param query         Current query context
- * @param event         Event to process (EVENT_TYPE_KEY or EVENT_TYPE_ENCODER for buffered events)
- * @param remaining_ms  Time remaining on previous timeout (0 if none/expired)
- * @param user_data     Gesture-specific state pointer
- * @return              Timeout and outcome indicating next action
+ * @param id              Id of the gesture
+ * @param query           Current query context
+ * @param event           Event to process (EVENT_TYPE_KEY or EVENT_TYPE_ENCODER for buffered events)
+ * @param remaining_ms    Time remaining on previous timeout (0 if none/expired)
+ * @param current_outcome Current outcome (timeout_outcome for ACTIVATION/ACTIVE, 0 for INITIAL)
+ * @param user_data       Gesture-specific state pointer
+ * @return                Timeout and outcome indicating next action
  */
 typedef gesture_timeout_t (*gesture_callback_t)(
     gesture_id_t          id,
     gesture_query_t       query,
     const gesture_event_t *event,
     uint16_t              remaining_ms,
+    uint8_t               current_outcome,
     void                  *user_data
 );
 
@@ -171,15 +187,18 @@ typedef gesture_timeout_t (*gesture_callback_t)(
  * points to the next gesture in the same state queue.
  */
 typedef struct {
-    gesture_state_t    state : 2;           // Current state
-    gesture_id_t       next : 13;           // Next gesture in queue (linked list)
-    bool               timeout_outcome : 1; // What to do on timeout (activate vs deactivate)
-    uint16_t           expiry;              // Absolute expiry time (0 = none, GESTURE_TIMEOUT_NEVER = never)
-    gesture_callback_t callback;            // Gesture logic
-    void              *user_data;           // Gesture-specific state
+    gesture_state_t    state : 2;              // Current state
+    gesture_id_t       next : 10;              // Next gesture in queue (linked list, max 1023)
+    uint8_t            timeout_outcome : 4;    // 0=cancel, 1..15=which outcome
+    gesture_event_id_t base_event_id;          // First virtual key event ID for this gesture
+    uint8_t            num_outcomes;            // Number of possible outcomes (1 for single-outcome)
+    uint16_t           expiry;                 // Absolute expiry time (0 = none, GESTURE_TIMEOUT_NEVER = never)
+    gesture_callback_t callback;               // Gesture logic
+    void              *user_data;              // Gesture-specific state
 } gesture_t;
 
-#define GESTURE(cb, ud) (gesture_t){.callback = cb, .user_data = ud}
+#define GESTURE(cb, ud, base_eid, n_outcomes) \
+    (gesture_t){.callback = cb, .user_data = ud, .base_event_id = base_eid, .num_outcomes = n_outcomes}
 
 /**
  * Buffered event with consumption tracking.
@@ -195,9 +214,9 @@ typedef struct {
 
 /* Dense index mapping for press history bitmap.
  * Physical keys: 0..NUM_KEY_POSITIONS-1
- * Gesture virtual keys: GESTURE_OFFSET..GESTURE_OFFSET+MAX_GESTURES-1 */
+ * Gesture virtual keys: GESTURE_OFFSET..GESTURE_OFFSET+NUM_GESTURE_EVENTS-1 */
 #define GESTURE_OFFSET         NUM_KEY_POSITIONS
-#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + MAX_GESTURES + 7) / 8)
+#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + NUM_GESTURE_EVENTS + 7) / 8)
 
 /*******************************************************************************
  * Coordinator State
@@ -312,7 +331,7 @@ void gesture_emit_event(gesture_event_t event);
 /**
  * Create a gesture_timeout_t with specified values.
  */
-#define GESTURE_TIMEOUT(t, o) ((gesture_timeout_t){.timeout = (t), .outcome = (o)})
+#define GESTURE_TIMEOUT(t, o) ((gesture_timeout_t){.timeout = (t), .outcome = (uint8_t)(o)})
 
 /**
  * Define a minimal QMK keymaps array. The gesture module bypasses QMK's
