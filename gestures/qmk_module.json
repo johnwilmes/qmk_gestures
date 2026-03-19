@@ -1,0 +1,8 @@
+{
+    "module_name": "Gestures",
+    "maintainer": "John Wilmes",
+    "license": "GPL-2.0-or-later",
+    "features": {
+        "repeat_key": true
+    }
+}
