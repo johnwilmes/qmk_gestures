@@ -104,12 +104,7 @@ typedef struct {
  ******************************************************************************/
 
 typedef struct {
-    layer_state_t  layer_state;      // Bitmask of active layers (layer 0 always active)
-    uint8_t        default_layer;    // Base layer (DF target)
     binding_entry_t bindings[MAX_ACTIVE_BINDINGS];
-
-    // One-shot layer state
-    uint8_t        osl_layer;        // Active one-shot layer (0xFF = none)
 } layer_system_t;
 
 /*******************************************************************************
@@ -129,11 +124,6 @@ void layers_init(void);
  * @return          Resolved keycode (KC_TRNS if no layer has a mapping)
  */
 uint16_t layer_resolve(event_type_t type, uint16_t event_id);
-
-/**
- * Check if a keycode is a layer management keycode (MO, TG, DF, OSL).
- */
-bool is_layer_keycode(uint16_t keycode);
 
 /*******************************************************************************
  * User-Provided Functions
