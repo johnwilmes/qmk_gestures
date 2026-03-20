@@ -188,7 +188,7 @@ typedef gesture_timeout_t (*gesture_callback_t)(
  */
 typedef struct {
     gesture_state_t    state : 2;              // Current state
-    gesture_id_t       next : 14;              // Next gesture in queue (linked list, max 1023)
+    gesture_id_t       next : 14;              // Next gesture in queue (linked list, max 16383)
     gesture_event_id_t base_event_id;          // First virtual key event ID for this gesture
     uint8_t            timeout_outcome;        // 0=cancel, 1+=which outcome
     uint8_t            num_outcomes;           // Number of possible outcomes (1 for single-outcome)

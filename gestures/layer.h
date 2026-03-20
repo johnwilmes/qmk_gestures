@@ -54,12 +54,11 @@ typedef struct {
 /**
  * Sparse layer: sorted array of (key_index, keycode) pairs.
  * Suitable for virtual key overrides where few keys have non-transparent
- * mappings on a given layer. Entries are sorted by key_index for binary search.
- * The entries array is stored in PROGMEM.
+ * mappings on a given layer. The entries array is stored in PROGMEM.
  */
 typedef struct {
     uint16_t             count;
-    const sparse_entry_t *entries;  // PROGMEM: sorted by key_index
+    const sparse_entry_t *entries;  // PROGMEM
 } sparse_layer_t;
 
 typedef enum {

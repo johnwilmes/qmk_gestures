@@ -1,5 +1,19 @@
 #include "tapdance.h"
 
+/*
+ * Outcome encoding:
+ *   0 = cancel
+ *   hold(n) = 2n-1   (n >= 1)
+ *   tap(n)  = 2(n-1) (n >= 2)
+ */
+static inline uint8_t hold_outcome(uint8_t press_count) {
+    return 2 * press_count - 1;
+}
+
+static inline uint8_t tap_outcome(uint8_t press_count) {
+    return 2 * (press_count - 1);
+}
+
 /* TAPDANCE BEHAVIOR OVERRIDES - default implementations */
 
 __attribute__((weak)) uint16_t get_tapdance_timeout(gesture_id_t id, const gesture_event_t *trigger_event) {
@@ -15,23 +29,9 @@ gesture_timeout_t tapdance_hold_on_other_key(const gesture_event_t *event, const
     // If a non-trigger key is pressed while the trigger is held, ripen the hold
     if (event->type == EVENT_TYPE_KEY && event->event_id != data->trigger_key &&
         event->pressed && data->key_down) {
-        return GESTURE_TIMEOUT(0, 1);
+        return GESTURE_TIMEOUT(0, hold_outcome(data->press_count));
     }
     return GESTURE_TIMEOUT(GESTURE_TIMEOUT_NEVER, 0);
-}
-
-/*
- * Outcome encoding:
- *   0 = cancel
- *   hold(n) = 2n-1   (n >= 1)
- *   tap(n)  = 2(n-1) (n >= 2)
- */
-static inline uint8_t hold_outcome(uint8_t press_count) {
-    return 2 * press_count - 1;
-}
-
-static inline uint8_t tap_outcome(uint8_t press_count) {
-    return 2 * (press_count - 1);
 }
 
 /*

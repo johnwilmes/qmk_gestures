@@ -56,7 +56,7 @@ static void emit_press(gesture_event_t event);
 static void emit_release(gesture_event_t event);
 
 /* Queue operations */
-static void queue_remove(gesture_id_t *head, gesture_id_t gesture_id);
+static bool queue_remove(gesture_id_t *head, gesture_id_t gesture_id);
 static void queue_push(gesture_id_t *head, gesture_id_t gesture_id);
 static void queue_insert_ascending(gesture_id_t *head, gesture_id_t gesture_id);
 static void queue_append(gesture_id_t *head, gesture_id_t gesture_id);
@@ -215,8 +215,11 @@ void gesture_enable(gesture_id_t gesture_id) {
     gesture_t *g = gesture_get(gesture_id);
     if (g->state == GS_DISABLED) {
         g->state = GS_INACTIVE;
-        queue_remove(&coordinator.disabled_head, gesture_id);
-        queue_push(&coordinator.inactive_head, gesture_id);
+        // If the gesture was lazily disabled (still in inactive queue,
+        // never moved to disabled queue), just flip the state back.
+        if (queue_remove(&coordinator.disabled_head, gesture_id)) {
+            queue_push(&coordinator.inactive_head, gesture_id);
+        }
     }
 }
 
@@ -375,16 +378,16 @@ static void emit_release(gesture_event_t event) {
  * Queue Operations
  ******************************************************************************/
 
-static void queue_remove(gesture_id_t *head, gesture_id_t gesture_id) {
+static bool queue_remove(gesture_id_t *head, gesture_id_t gesture_id) {
     if (*head == GESTURE_NULL_ID) {
-        return;
+        return false;
     }
 
     if (*head == gesture_id) {
         gesture_t *g = gesture_get(gesture_id);
         *head = g->next;
         g->next = GESTURE_NULL_ID;
-        return;
+        return true;
     }
 
     gesture_id_t current = *head;
@@ -394,10 +397,11 @@ static void queue_remove(gesture_id_t *head, gesture_id_t gesture_id) {
             gesture_t *target = gesture_get(gesture_id);
             g->next = target->next;
             target->next = GESTURE_NULL_ID;
-            return;
+            return true;
         }
         current = g->next;
     }
+    return false;
 }
 
 static void queue_push(gesture_id_t *head, gesture_id_t gesture_id) {
@@ -854,6 +858,10 @@ static void deactivate_gesture(gesture_id_t gesture_id) {
  * Process any expired timeouts.
  */
 static void process_pending_timeouts(uint16_t now) {
+    // N.B. propose_candidate may remove entries from partial_head, but only
+    // those with IDs lower than the candidate.  Since partial_head is sorted
+    // ascending and we iterate forward, removed entries have already been
+    // visited, so next_id (always higher) remains valid.
     gesture_id_t id = coordinator.partial_head;
     while (id != GESTURE_NULL_ID) {
         gesture_t *g = gesture_get(id);
