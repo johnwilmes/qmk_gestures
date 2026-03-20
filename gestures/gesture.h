@@ -46,8 +46,8 @@
 #    define NUM_GESTURE_EVENTS MAX_GESTURES
 #endif
 
-/* Null gesture ID for linked list termination (must fit in 10-bit next field) */
-#define GESTURE_NULL_ID ((gesture_id_t)0x3FF)
+/* Null gesture ID for linked list termination (must fit in 14-bit next field) */
+#define GESTURE_NULL_ID ((gesture_id_t)0x3FFF)
 
 /* Timeout value meaning "never timeout" */
 #define GESTURE_TIMEOUT_NEVER ((uint16_t)0xFFFF)
@@ -64,7 +64,7 @@ typedef enum {
     EVENT_TYPE_KEY,      // Physical key: event_id is dense key index (0..NUM_KEY_POSITIONS-1)
     EVENT_TYPE_GESTURE,  // Virtual gesture: event_id is gesture ID (0..MAX_GESTURES-1)
     EVENT_TYPE_ENCODER,  // Encoder action: encoder field has id/direction/count
-    EVENT_TYPE_COUNT,
+    NUM_EVENT_TYPES,
 } event_type_t;
 
 /**
@@ -188,10 +188,10 @@ typedef gesture_timeout_t (*gesture_callback_t)(
  */
 typedef struct {
     gesture_state_t    state : 2;              // Current state
-    gesture_id_t       next : 10;              // Next gesture in queue (linked list, max 1023)
-    uint8_t            timeout_outcome : 4;    // 0=cancel, 1..15=which outcome
+    gesture_id_t       next : 14;              // Next gesture in queue (linked list, max 1023)
     gesture_event_id_t base_event_id;          // First virtual key event ID for this gesture
-    uint8_t            num_outcomes;            // Number of possible outcomes (1 for single-outcome)
+    uint8_t            timeout_outcome;        // 0=cancel, 1+=which outcome
+    uint8_t            num_outcomes;           // Number of possible outcomes (1 for single-outcome)
     uint16_t           expiry;                 // Absolute expiry time (0 = none, GESTURE_TIMEOUT_NEVER = never)
     gesture_callback_t callback;               // Gesture logic
     void              *user_data;              // Gesture-specific state

@@ -49,8 +49,6 @@ void layers_init(void) {
     ls.default_layer = 0;
     ls.layer_state = 1;  // Layer 0 always active
     ls.osl_layer = 0xFF;
-    ls.osl_held = false;
-    ls.osl_used = false;
 
     for (uint8_t i = 0; i < MAX_ACTIVE_BINDINGS; i++) {
         ls.bindings[i].keycode = KC_NO;
@@ -104,22 +102,11 @@ uint16_t layer_resolve(event_type_t type, uint16_t event_id) {
 }
 
 static uint16_t sparse_lookup(const sparse_layer_t *sl, uint16_t key_index) {
-    uint16_t lo = 0;
-    uint16_t hi = sl->count;
-
-    while (lo < hi) {
-        uint16_t mid = lo + (hi - lo) / 2;
-        uint16_t mid_key = pgm_read_word(&sl->entries[mid].key_index);
-
-        if (mid_key == key_index) {
-            return pgm_read_word(&sl->entries[mid].keycode);
-        } else if (mid_key < key_index) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
+    for (uint16_t i = 0; i < sl->count; i++) {
+        if (pgm_read_word(&sl->entries[i].key_index) == key_index) {
+            return pgm_read_word(&sl->entries[i].keycode);
         }
     }
-
     return KC_TRNS;
 }
 
@@ -213,17 +200,13 @@ static void sync_layer_state(void) {
 /*******************************************************************************
  * One-Shot Layer
  *
- * Two modes:
- *   Tap:  press OSL, release OSL, press next key → key uses layer, then
- *         layer deactivates.
- *   Hold: press OSL, press key (while held) → key uses layer, layer stays
- *         active until OSL release.
+ * Press OSL → layer activates. Next non-layer keypress deactivates it.
+ * Hold-as-MO behavior belongs in the gesture system (tap/hold distinction),
+ * not here.
  ******************************************************************************/
 
 static void osl_activate(uint8_t layer_id) {
     ls.osl_layer = layer_id;
-    ls.osl_held = true;
-    ls.osl_used = false;
     layer_activate(layer_id);
 }
 
@@ -231,31 +214,13 @@ static void osl_deactivate(void) {
     if (ls.osl_layer != 0xFF) {
         layer_deactivate(ls.osl_layer);
         ls.osl_layer = 0xFF;
-        ls.osl_held = false;
-        ls.osl_used = false;
-    }
-}
-
-static void osl_on_release(void) {
-    ls.osl_held = false;
-    // If a key was pressed while held (hold mode), deactivate now.
-    // If no key was pressed (tap mode), leave armed for next key.
-    if (ls.osl_used) {
-        osl_deactivate();
     }
 }
 
 /* Called after emitting a non-layer keycode press. */
 static void osl_on_keypress(void) {
     if (ls.osl_layer == 0xFF) return;
-
-    if (ls.osl_held) {
-        // Hold mode: mark as used, deactivate will happen on OSL release
-        ls.osl_used = true;
-    } else {
-        // Tap mode: OSL already released, deactivate now
-        osl_deactivate();
-    }
+    osl_deactivate();
 }
 
 /*******************************************************************************
@@ -277,10 +242,8 @@ static void handle_layer_press(uint16_t keycode) {
 static void handle_layer_release(uint16_t keycode) {
     if (IS_QK_MOMENTARY(keycode)) {
         layer_deactivate(QK_MOMENTARY_GET_LAYER(keycode));
-    } else if (IS_QK_ONE_SHOT_LAYER(keycode)) {
-        osl_on_release();
     }
-    // TG, DF: no release action
+    // TG, DF, OSL: no release action
 }
 
 /*******************************************************************************

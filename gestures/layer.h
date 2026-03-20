@@ -110,8 +110,6 @@ typedef struct {
 
     // One-shot layer state
     uint8_t        osl_layer;        // Active one-shot layer (0xFF = none)
-    bool           osl_held;         // OSL key is physically held
-    bool           osl_used;         // A key was pressed while OSL was active
 } layer_system_t;
 
 /*******************************************************************************
@@ -152,3 +150,44 @@ extern const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id);
  * Return the total number of layers.
  */
 extern uint8_t layer_count(void);
+
+/*******************************************************************************
+ * Layer Definition Macros
+ ******************************************************************************/
+
+#include "progmem.h"
+
+/**
+ * Define a dense layer from a PROGMEM keycode array covering all key positions.
+ *   static const uint16_t PROGMEM my_map[] = { KC_A, KC_B, ... };
+ *   DEFINE_DENSE_LAYER(my_layer, my_map);
+ */
+#define DEFINE_DENSE_LAYER(name, map_array) \
+    static const gesture_layer_t name = { \
+        .type = LAYER_DENSE, \
+        .default_keycode = KC_TRNS, \
+        .dense = { \
+            .base_index = 0, \
+            .count = sizeof(map_array) / sizeof(uint16_t), \
+            .map = (map_array), \
+        }, \
+    }
+
+/**
+ * Define a sparse layer from a PROGMEM sparse_entry_t array.
+ * Entries can be in any order (lookup is linear scan).
+ *
+ *   static const sparse_entry_t PROGMEM my_entries[] = {
+ *       {0, KC_LSFT}, {1, KC_LCTL},
+ *   };
+ *   DEFINE_SPARSE_LAYER(my_layer, my_entries);
+ */
+#define DEFINE_SPARSE_LAYER(name, entries_array) \
+    static const gesture_layer_t name = { \
+        .type = LAYER_SPARSE, \
+        .default_keycode = KC_TRNS, \
+        .sparse = { \
+            .count = sizeof(entries_array) / sizeof(sparse_entry_t), \
+            .entries = (entries_array), \
+        }, \
+    }

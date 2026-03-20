@@ -348,10 +348,10 @@ typedef enum {
     EVENT_TYPE_KEY,      // Physical keys: 0..MATRIX_ROWS*MATRIX_COLS-1
     EVENT_TYPE_GESTURE,  // Gesture virtual keys: 0..MAX_GESTURES-1
     EVENT_TYPE_ENCODER,  // Encoder actions: 0..NUM_ENCODERS*2-1 (CW/CCW)
-    EVENT_TYPE_COUNT,
+    NUM_EVENT_TYPES,
 } event_type_t;
 
-layer_t layers[EVENT_TYPE_COUNT][NUM_LAYERS];
+layer_t layers[NUM_EVENT_TYPES][NUM_LAYERS];
 ```
 
 When layer 2 is active, `layers[EVENT_TYPE_KEY][2]`,
@@ -370,7 +370,7 @@ active layers highest-to-lowest, returns first non-default keycode.
 The only behavioral difference is **transient vs persistent** event types:
 
 ```c
-bool is_transient[EVENT_TYPE_COUNT] = {
+bool is_transient[NUM_EVENT_TYPES] = {
     [EVENT_TYPE_KEY]     = false,  // press/release are separate events
     [EVENT_TYPE_GESTURE] = false,  // press/release are separate events
     [EVENT_TYPE_ENCODER] = true,   // emit press+release atomically
