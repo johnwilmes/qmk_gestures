@@ -9,10 +9,10 @@ Reads the keyboard layout definition and produces:
   - NUM_KEY_POSITIONS -- total number of physical key positions
 
 Usage:
-    python3 gen_gesture_layout.py <qmk_firmware_dir> <keyboard> [layout_name]
+    python3 gen_gesture_layout.py <info.json> [layout_name]
 
 Example:
-    python3 gen_gesture_layout.py ~/qmk_firmware splitkb/halcyon/kyria
+    python3 gen_gesture_layout.py ~/qmk_firmware/keyboards/splitkb/halcyon/kyria/keyboard.json
 """
 
 import json
@@ -20,14 +20,13 @@ import sys
 from pathlib import Path
 
 
-def load_keyboard_info(qmk_dir, keyboard):
+def load_keyboard_info(json_path):
     """Load and return the keyboard's info.json data."""
-    for name in ("info.json", "keyboard.json"):
-        path = Path(qmk_dir) / "keyboards" / keyboard / name
-        if path.exists():
-            with open(path) as f:
-                return json.load(f)
-    sys.exit(f"Error: no info.json found under {Path(qmk_dir) / 'keyboards' / keyboard}")
+    path = Path(json_path)
+    if not path.exists():
+        sys.exit(f"Error: file not found: {path}")
+    with open(path) as f:
+        return json.load(f)
 
 
 def resolve_layout(info, layout_name=None):
@@ -68,7 +67,7 @@ def sanitize_label(label):
     return label.replace(" ", "_").replace("-", "_")
 
 
-def generate_header(keyboard, layout_name, keys):
+def generate_header(source, layout_name, keys):
     """Generate the gesture_layout.h content."""
     num_keys = len(keys)
     rows = group_into_visual_rows(keys)
@@ -78,7 +77,7 @@ def generate_header(keyboard, layout_name, keys):
         key["param"] = sanitize_label(key.get("label", f"k{keys.index(key)}"))
 
     lines = []
-    lines.append(f"/* gesture_layout.h -- generated from {keyboard}")
+    lines.append(f"/* gesture_layout.h -- generated from {Path(source).name}")
     lines.append(f" * Layout: {layout_name} ({num_keys} keys)")
     lines.append(f" *")
     lines.append(f" * Key positions (label: matrix [row, col]):")
@@ -144,17 +143,16 @@ def generate_header(keyboard, layout_name, keys):
 
 
 def main():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
 
-    qmk_dir = sys.argv[1]
-    keyboard = sys.argv[2]
-    layout_name = sys.argv[3] if len(sys.argv) > 3 else None
+    json_path = sys.argv[1]
+    layout_name = sys.argv[2] if len(sys.argv) > 2 else None
 
-    info = load_keyboard_info(qmk_dir, keyboard)
+    info = load_keyboard_info(json_path)
     name, keys = resolve_layout(info, layout_name)
-    output = generate_header(keyboard, name, keys)
+    output = generate_header(json_path, name, keys)
     print(output, end="")
 
 
