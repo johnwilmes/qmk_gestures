@@ -26,9 +26,7 @@ ASSERT_COMMUNITY_MODULES_MIN_API_VERSION(1, 0, 0);
 
 /**
  * Map a QMK matrix position to a dense key index for the gesture system.
- *
- * The user defines the mapping from (row, col) to dense key indices
- * (0..NUM_KEY_POSITIONS-1). Typically backed by a PROGMEM lookup table.
+ * Declared in layer.h; repeated here because gestures.c does not include it.
  */
 extern uint8_t gesture_key_index(keypos_t pos);
 

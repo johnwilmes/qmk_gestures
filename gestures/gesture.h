@@ -313,6 +313,13 @@ gesture_t *gesture_get(gesture_id_t index);
 uint16_t gesture_count(void);
 
 /**
+ * User must define: map a QMK matrix position to a dense key index
+ * (0..NUM_KEY_POSITIONS-1). Called at pipeline entry and by the layer
+ * system's keymap introspection override. Declared in layer.h (where
+ * the QMK keypos_t type is available).
+ */
+
+/**
  * Emit a resolved event to the layer system.
  *
  * Provided by the layer system (layers/layer.c). Called when a physical

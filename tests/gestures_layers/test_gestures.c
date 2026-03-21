@@ -40,51 +40,28 @@ uint16_t gesture_count(void) {
 
 /* --- Key layers --- */
 
-static const uint16_t PROGMEM layer0_keys[] = {
+DEFINE_DENSE_LAYER(key, 0,
     KC_A,   KC_B,   KC_C,   KC_D,   KC_E,  KC_F, KC_G, KC_H, KC_I, KC_J,
     KC_TAB, KC_ESC, KC_K,   KC_L,   KC_M,  KC_N, KC_O, KC_P, KC_Q, KC_R,
     KC_NO,  KC_NO,  KC_NO,  KC_NO,  KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-    KC_NO,  KC_NO,  KC_NO,  KC_NO,  KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-};
-DEFINE_DENSE_LAYER(layer0_key, layer0_keys);
+    KC_NO,  KC_NO,  KC_NO,  KC_NO,  KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO
+);
 
-static const uint16_t PROGMEM layer1_keys[] = {
+DEFINE_DENSE_LAYER(key, 1,
     KC_1,     KC_2,     KC_TRNS,  KC_4,     KC_5,     KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-};
-DEFINE_DENSE_LAYER(layer1_key, layer1_keys);
+    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO
+);
 
-static const sparse_entry_t PROGMEM layer2_key_entries[] = {
+DEFINE_SPARSE_LAYER(key, 2,
     {KEY_POS(0, 0), KC_F1},
-    {KEY_POS(0, 1), KC_F2},
-};
-DEFINE_SPARSE_LAYER(layer2_key, layer2_key_entries);
+    {KEY_POS(0, 1), KC_F2}
+);
 
 /* --- Gesture layers --- */
 
-static const sparse_entry_t PROGMEM layer0_gesture_entries[] = {
+DEFINE_SPARSE_LAYER(gesture, 0,
     {GE_HOLD_mo1, MO(1)},    /* mo1 hold → momentary layer 1 */
-    {GE_HOLD_tg2, TG(2)},    /* tg2 hold → toggle layer 2 */
-};
-DEFINE_SPARSE_LAYER(layer0_gesture, layer0_gesture_entries);
-
-const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id) {
-    if (type == EVENT_TYPE_KEY) {
-        switch (layer_id) {
-            case 0: return &layer0_key;
-            case 1: return &layer1_key;
-            case 2: return &layer2_key;
-            default: return NULL;
-        }
-    }
-    if (type == EVENT_TYPE_GESTURE && layer_id == 0) {
-        return &layer0_gesture;
-    }
-    return NULL;
-}
-
-uint8_t layer_count(void) {
-    return 3;
-}
+    {GE_HOLD_tg2, TG(2)}     /* tg2 hold → toggle layer 2 */
+);

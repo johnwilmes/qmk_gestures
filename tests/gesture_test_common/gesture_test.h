@@ -21,4 +21,6 @@ __attribute__((used)) uint8_t gesture_key_index(keypos_t pos) {
     return pos.row * MATRIX_COLS + pos.col;
 }
 
-/* DEFINE_DENSE_LAYER and DEFINE_SPARSE_LAYER are provided by layer.h */
+/* DEFINE_DENSE_LAYER(type_name, id, ...) and DEFINE_SPARSE_LAYER(type_name, id, ...)
+ * are provided by layer.h. They create layer definitions with standardized names
+ * for the weak default layer_get to find via the layer table. */
