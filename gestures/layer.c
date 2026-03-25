@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string.h>
 #include "layer.h"
 #include "keycodes.h"
 #include "quantum_keycodes.h"
@@ -212,8 +213,10 @@ static void emit_to_qmk(gesture_event_t event, uint16_t keycode) {
     // Pack event_id into keypos_t so downstream process_record_user
     // can retrieve trigger data if needed.
     uint16_t packed_id = event.event_id;
+    keypos_t packed_key;
+    memcpy(&packed_key, &packed_id, sizeof(packed_key));
     keyevent_t qmk_event = {
-        .key     = *(keypos_t *)&packed_id,
+        .key     = packed_key,
         .pressed = event.pressed,
         .time    = event.time,
         .type    = (event.type == EVENT_TYPE_GESTURE) ? COMBO_EVENT : KEY_EVENT,

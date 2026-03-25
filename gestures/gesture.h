@@ -345,4 +345,4 @@ void gesture_emit_event(gesture_event_t event);
  * layer lookup, but the keymaps symbol must exist for the build to link.
  */
 #define GESTURES_EMPTY_KEYMAP \
-    const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {[0] = {0}}
+    const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {[0] = {{0}}};
