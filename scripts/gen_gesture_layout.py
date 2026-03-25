@@ -4,8 +4,6 @@
 Reads the keyboard layout definition and produces:
   - GESTURE_LAYOUT_CALL(_F, ...) -- higher-order macro pairing each position
     with its (row, col), calling _F(name, row, col) for each key
-  - GESTURE_LAYOUT(...) -- identity macro with arity check, same visual
-    arrangement as GESTURE_LAYOUT_CALL
   - NUM_KEY_POSITIONS -- total number of physical key positions
 
 Usage:
@@ -116,27 +114,6 @@ def generate_header(source, layout_name, keys):
         parts = [f"_F({k['param']}, {k['matrix'][0]}, {k['matrix'][1]})" for k in row]
         cont = " \\" if i < len(rows) - 1 else ""
         lines.append(f"    {' '.join(parts)}{cont}")
-
-    lines.append(f"")
-
-    # --- GESTURE_LAYOUT ---
-    lines.append(f"/*")
-    lines.append(f" * Identity layout macro with arity check.")
-    lines.append(f" * Use with DEFINE_DENSE_LAYER for visually arranged keycodes.")
-    lines.append(f" */")
-
-    lines.append(f"#define GESTURE_LAYOUT( \\")
-    for i, pr in enumerate(param_rows):
-        sep = "," if i < len(param_rows) - 1 else ""
-        cont = " \\" if i < len(param_rows) - 1 else " \\"
-        lines.append(f"    {pr}{sep}{cont}")
-    lines.append(f") \\")
-
-    # Body: flat list in order
-    for i, pr in enumerate(param_rows):
-        sep = "," if i < len(param_rows) - 1 else ""
-        cont = " \\" if i < len(param_rows) - 1 else ""
-        lines.append(f"    {pr}{sep}{cont}")
 
     lines.append(f"")
     return "\n".join(lines) + "\n"
