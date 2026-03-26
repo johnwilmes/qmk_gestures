@@ -340,10 +340,11 @@ static bool history_test(uint16_t index) {
  ******************************************************************************/
 
 /* Map event to its dense history bitmap index.
- * Encoder events don't participate in press history (press-only, no release). */
+ * Encoder events don't participate in press history (press-only, no release).
+ * Gesture events index by gesture_id (one bit per gesture, not per outcome). */
 static inline uint16_t history_index(gesture_event_t event) {
     if (event.type == EVENT_TYPE_GESTURE) {
-        return GESTURE_OFFSET + event.event_id;
+        return GESTURE_OFFSET + event.gesture.gesture_id;
     }
     return event.event_id;
 }
@@ -747,10 +748,12 @@ static void activate_gesture(gesture_id_t gesture_id) {
     gesture_t *g = gesture_get(gesture_id);
     uint16_t activation_time = buffer_head_event()->event.time;
 
-    // Emit virtual press using base_event_id + outcome offset
-    gesture_event_id_t emit_id = g->base_event_id + (g->timeout_outcome > 0 ? g->timeout_outcome - 1 : 0);
+    // Emit virtual press with packed (gesture_id, outcome)
     gesture_event_t virtual_press = {
-        .event_id = emit_id,
+        .gesture = {
+            .gesture_id = gesture_id,
+            .outcome = g->timeout_outcome,
+        },
         .time = activation_time,
         .type = EVENT_TYPE_GESTURE,
         .pressed = true,
@@ -839,9 +842,11 @@ static void deactivate_gesture(gesture_id_t gesture_id) {
     if (release_time == GESTURE_TIMEOUT_NEVER) {
         release_time = timer_read();
     }
-    gesture_event_id_t emit_id = g->base_event_id + (g->timeout_outcome > 0 ? g->timeout_outcome - 1 : 0);
     gesture_event_t virtual_release = {
-        .event_id = emit_id,
+        .gesture = {
+            .gesture_id = gesture_id,
+            .outcome = g->timeout_outcome,
+        },
         .time = release_time,
         .type = EVENT_TYPE_GESTURE,
         .pressed = false,

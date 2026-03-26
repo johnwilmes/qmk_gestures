@@ -37,9 +37,10 @@ typedef struct {
 
 /* Dense index mapping for press history bitmap.
  * Physical keys: 0..NUM_KEY_POSITIONS-1
- * Gesture virtual keys: GESTURE_OFFSET..GESTURE_OFFSET+NUM_GESTURE_EVENTS-1 */
+ * Gesture events: GESTURE_OFFSET..GESTURE_OFFSET+MAX_GESTURES-1
+ * (one bit per gesture — each gesture has at most one active outcome) */
 #define GESTURE_OFFSET         NUM_KEY_POSITIONS
-#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + NUM_GESTURE_EVENTS + 7) / 8)
+#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + MAX_GESTURES + 7) / 8)
 
 /*******************************************************************************
  * Coordinator State
@@ -142,11 +143,3 @@ typedef struct {
  */
 void layers_init(void);
 
-/**
- * Resolve a key event to a keycode by iterating active layers.
- *
- * @param type      Event type namespace
- * @param event_id  Dense index within that namespace
- * @return          Resolved keycode (KC_TRNS if no layer has a mapping)
- */
-uint16_t layer_resolve(event_type_t type, uint16_t event_id);

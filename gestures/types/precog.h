@@ -23,8 +23,8 @@
  * Usage:
  *
  *   // 8 combos: 4 per hand (thumb + each home-row key)
- *   DEFINE_COMBO_KEYS(precog_li, POS_L_THUMB, POS_L_INDEX_H)
- *   DEFINE_COMBO_KEYS(precog_lm, POS_L_THUMB, POS_L_MIDDLE_H)
+ *   DEFINE_COMBO(precog_li, POS_L_THUMB, POS_L_INDEX_H)
+ *   DEFINE_COMBO(precog_lm, POS_L_THUMB, POS_L_MIDDLE_H)
  *   // ...
  *
  *   static precog_state_t precog_li_state = {0};

@@ -40,9 +40,9 @@ static void emit_encoder_to_qmk(gesture_event_t event, uint16_t keycode);
 static void     binding_store(event_type_t type, uint16_t event_id, uint16_t keycode);
 static uint16_t binding_lookup_and_clear(event_type_t type, uint16_t event_id);
 
-/* Layer lookup */
-static uint16_t sparse_lookup(const sparse_layer_t *sl, uint16_t key_index, uint16_t default_keycode);
-static uint16_t dense_lookup(const dense_layer_t *dl, uint16_t key_index, uint16_t default_keycode);
+/* Key layer lookup */
+static uint16_t key_sparse_lookup(const sparse_key_layer_t *sl, uint16_t key_index, uint16_t default_keycode);
+static uint16_t key_dense_lookup(const dense_key_layer_t *dl, uint16_t key_index, uint16_t default_keycode);
 
 /*******************************************************************************
  * QMK Keymap Introspection Overrides
@@ -53,14 +53,14 @@ uint8_t keymap_layer_count(void) {
 }
 
 uint16_t keycode_at_keymap_location(uint8_t layer_num, uint8_t row, uint8_t column) {
-    const gesture_layer_t *layer = layer_get(EVENT_TYPE_KEY, layer_num);
+    const key_layer_t *layer = key_layer_get(layer_num);
     if (!layer) return KC_TRNS;
     keypos_t pos = { .row = row, .col = column };
     uint16_t event_id = gesture_key_index(pos);
     if (layer->type == LAYER_DENSE) {
-        return dense_lookup(&layer->dense, event_id, layer->default_keycode);
+        return key_dense_lookup(&layer->dense, event_id, layer->default_keycode);
     } else {
-        return sparse_lookup(&layer->sparse, event_id, layer->default_keycode);
+        return key_sparse_lookup(&layer->sparse, event_id, layer->default_keycode);
     }
 }
 
@@ -76,41 +76,31 @@ void layers_init(void) {
 }
 
 /*******************************************************************************
- * Layer Resolution
+ * Key Layer Resolution
  ******************************************************************************/
 
-uint16_t layer_resolve(event_type_t type, uint16_t event_id) {
+static uint16_t resolve_key(uint16_t key_index) {
     uint8_t count = layer_count();
     layer_state_t active = layer_state | default_layer_state;
 
-    // Iterate active layers from highest to lowest
     for (int8_t i = count - 1; i >= 0; i--) {
-        if (!(active & ((layer_state_t)1 << i))) {
-            continue;  // Layer not active
-        }
+        if (!(active & ((layer_state_t)1 << i))) continue;
 
-        const gesture_layer_t *layer = layer_get(type, i);
-        if (!layer) {
-            continue;  // No mapping for this event type on this layer
-        }
+        const key_layer_t *layer = key_layer_get(i);
+        if (!layer) continue;
 
         uint16_t keycode;
-
         if (layer->type == LAYER_DENSE) {
-            keycode = dense_lookup(&layer->dense, event_id, layer->default_keycode);
+            keycode = key_dense_lookup(&layer->dense, key_index, layer->default_keycode);
         } else {
-            keycode = sparse_lookup(&layer->sparse, event_id, layer->default_keycode);
+            keycode = key_sparse_lookup(&layer->sparse, key_index, layer->default_keycode);
         }
-
-        if (keycode != KC_TRNS) {
-            return keycode;
-        }
+        if (keycode != KC_TRNS) return keycode;
     }
-
     return KC_TRNS;
 }
 
-static uint16_t dense_lookup(const dense_layer_t *dl, uint16_t key_index, uint16_t default_keycode) {
+static uint16_t key_dense_lookup(const dense_key_layer_t *dl, uint16_t key_index, uint16_t default_keycode) {
     uint16_t offset = key_index - dl->base_index;
     if (key_index >= dl->base_index && offset < dl->count) {
         return pgm_read_word(&dl->map[offset]);
@@ -118,13 +108,67 @@ static uint16_t dense_lookup(const dense_layer_t *dl, uint16_t key_index, uint16
     return default_keycode;
 }
 
-static uint16_t sparse_lookup(const sparse_layer_t *sl, uint16_t key_index, uint16_t default_keycode) {
+static uint16_t key_sparse_lookup(const sparse_key_layer_t *sl, uint16_t key_index, uint16_t default_keycode) {
     for (uint16_t i = 0; i < sl->count; i++) {
         if (pgm_read_word(&sl->entries[i].key_index) == key_index) {
             return pgm_read_word(&sl->entries[i].keycode);
         }
     }
     return default_keycode;
+}
+
+/*******************************************************************************
+ * Gesture Layer Resolution
+ ******************************************************************************/
+
+static uint16_t resolve_gesture(uint16_t gesture_id, uint8_t outcome) {
+    uint8_t count = layer_count();
+    layer_state_t active = layer_state | default_layer_state;
+
+    for (int8_t i = count - 1; i >= 0; i--) {
+        if (!(active & ((layer_state_t)1 << i))) continue;
+
+        const gesture_layer_t *layer = gesture_layer_get(i);
+        if (!layer) continue;
+
+        for (uint16_t j = 0; j < pgm_read_word(&layer->count); j++) {
+            uint8_t eid = pgm_read_byte(&layer->entries[j].gesture_id);
+            uint8_t eout = pgm_read_byte(&layer->entries[j].outcome);
+            if (eid == gesture_id && eout == outcome) {
+                uint16_t keycode = pgm_read_word(&layer->entries[j].keycode);
+                if (keycode != KC_TRNS) return keycode;
+                break;  // found entry but KC_TRNS — fall through to next layer
+            }
+        }
+    }
+    return KC_TRNS;
+}
+
+/*******************************************************************************
+ * Encoder Layer Resolution
+ ******************************************************************************/
+
+static uint16_t resolve_encoder(uint8_t encoder_id, bool clockwise) {
+    uint8_t count = layer_count();
+    layer_state_t active = layer_state | default_layer_state;
+
+    for (int8_t i = count - 1; i >= 0; i--) {
+        if (!(active & ((layer_state_t)1 << i))) continue;
+
+        const encoder_layer_t *layer = encoder_layer_get(i);
+        if (!layer) continue;
+
+        for (uint16_t j = 0; j < pgm_read_word(&layer->count); j++) {
+            if (pgm_read_byte(&layer->entries[j].encoder_id) == encoder_id) {
+                uint16_t keycode = clockwise
+                    ? pgm_read_word(&layer->entries[j].cw)
+                    : pgm_read_word(&layer->entries[j].ccw);
+                if (keycode != KC_TRNS) return keycode;
+                break;
+            }
+        }
+    }
+    return KC_TRNS;
 }
 
 /*******************************************************************************
@@ -224,18 +268,20 @@ static void emit_encoder_to_qmk(gesture_event_t event, uint16_t keycode) {
 
 void gesture_emit_event(gesture_event_t event) {
     if (event.type == EVENT_TYPE_ENCODER) {
-        // Transient: resolve and emit, no binding
-        uint16_t enc_index = event.encoder.encoder_id * 2 +
-                             (event.encoder.clockwise ? 0 : 1);
-        uint16_t keycode = layer_resolve(EVENT_TYPE_ENCODER, enc_index);
-
+        uint16_t keycode = resolve_encoder(event.encoder.encoder_id,
+                                           event.encoder.clockwise);
         emit_encoder_to_qmk(event, keycode);
         return;
     }
 
-    // Persistent event types (key, gesture): use binding table
     if (event.pressed) {
-        uint16_t keycode = layer_resolve(event.type, event.event_id);
+        uint16_t keycode;
+        if (event.type == EVENT_TYPE_GESTURE) {
+            keycode = resolve_gesture(event.gesture.gesture_id,
+                                      event.gesture.outcome);
+        } else {
+            keycode = resolve_key(event.event_id);
+        }
         binding_store(event.type, event.event_id, keycode);
         emit_to_qmk(event, keycode);
     } else {

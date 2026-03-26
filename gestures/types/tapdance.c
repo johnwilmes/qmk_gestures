@@ -64,8 +64,8 @@ static bool is_resolved(tapdance_data_t *s) {
  * Single multi-outcome tapdance callback.
  *
  * One gesture tracks the full press sequence. The outcome encodes which
- * virtual key to emit: hold(n) or tap(n). The coordinator uses
- * base_event_id + outcome - 1 to derive the event_id.
+ * virtual key to emit: hold(n) or tap(n). The layer system resolves
+ * (gesture_id, outcome) to a keycode via the gesture layer table.
  */
 gesture_timeout_t tapdance_gesture_callback(gesture_id_t id, gesture_query_t query, const gesture_event_t *event, uint16_t remaining_ms, uint8_t current_outcome, void *user_data) {
     tapdance_data_t *s = (tapdance_data_t *)user_data;

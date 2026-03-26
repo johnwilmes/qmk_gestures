@@ -5,23 +5,19 @@
  *   (0,1) = tapdance key → tap: KC_B (base), double-tap: KC_X, hold: KC_LSFT
  *   (0,2) = plain key    → KC_C
  *
- * Gestures (3 total, using TAPDANCE_GESTURES with max_presses=2):
- *   0: td hold(1)   (trigger: key index 1, hold → KC_LSFT)
- *   1: td tap(2)    (trigger: key index 1, double-tap → KC_X)
- *   2: td hold(2)   (trigger: key index 1, tap-then-hold → KC_LCTL)
+ * Gestures (1 tapdance with max_presses=2, 3 outcomes):
+ *   outcome 1: hold(1)   → KC_LSFT
+ *   outcome 2: tap(2)    → KC_X (double-tap)
+ *   outcome 3: hold(2)   → KC_LCTL (tap-then-hold)
  */
 
 #include "gesture_test.h"
 
-/* Event IDs for gesture virtual keys */
-enum gesture_events {
-    TAPDANCE_EVENTS(td, 2),
-};
-
 DEFINE_TAPDANCE(td, KEY_POS(0, 1), 2);
 
-DEFINE_GESTURES(
-    TAPDANCE_GESTURE(td, 2),  /* single gesture: hold(1), tap(2), hold(2) */
+enum { GS(td) };
+DEFINE_GESTURES_MANUAL(
+    GESTURE_ENTRY(td),
 );
 
 /* Layer 0 key mappings: single tap keycode in base keymap */
@@ -33,10 +29,8 @@ DEFINE_DENSE_LAYER(base_keys,
 );
 
 /* Layer 0 gesture mappings */
-DEFINE_SPARSE_LAYER(base_gestures,
-    {GE_TD_td_HOLD1, KC_LSFT},  /* hold(1) → left shift */
-    {GE_TD_td_TAP2,  KC_X},     /* tap(2) → X (double-tap) */
-    {GE_TD_td_HOLD2, KC_LCTL}   /* hold(2) → left ctrl (tap-then-hold) */
+DEFINE_GESTURE_LAYER(base_gestures,
+    TD_MAP(td, 2, KC_LSFT, KC_X, KC_LCTL),
 );
 
 DEFINE_LAYER_TABLE(

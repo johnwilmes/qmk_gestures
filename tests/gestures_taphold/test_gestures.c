@@ -13,19 +13,14 @@
 
 #include "gesture_test.h"
 
-/* Event IDs for gesture virtual keys */
-enum gesture_events {
-    HOLD_EVENTS(th_b),
-    HOLD_EVENTS(th_d),
-};
-
 /* Hold definitions */
 DEFINE_HOLD(th_b, KEY_POS(0, 1));
 DEFINE_HOLD(th_d, KEY_POS(0, 3));
 
-DEFINE_GESTURES(
-    HOLD_GESTURE(th_b),  /* 0: hold → KC_LSFT */
-    HOLD_GESTURE(th_d),  /* 1: hold → KC_LCTL */
+enum { GS(th_b), GS(th_d) };
+DEFINE_GESTURES_MANUAL(
+    GESTURE_ENTRY(th_b),
+    GESTURE_ENTRY(th_d),
 );
 
 /* Layer 0 key mappings: tap keycodes are in the base keymap */
@@ -36,10 +31,10 @@ DEFINE_DENSE_LAYER(base_keys,
     KC_5, KC_6, KC_7, KC_8, KC_9, KC_0, KC_NO, KC_NO, KC_NO, KC_NO
 );
 
-/* Layer 0 gesture mappings: only hold keycodes */
-DEFINE_SPARSE_LAYER(base_gestures,
-    {GE_HOLD_th_b, KC_LSFT},  /* th_b hold → left shift */
-    {GE_HOLD_th_d, KC_LCTL}   /* th_d hold → left ctrl */
+/* Layer 0 gesture mappings */
+DEFINE_GESTURE_LAYER(base_gestures,
+    HOLD_MAP(th_b, KC_LSFT),
+    HOLD_MAP(th_d, KC_LCTL),
 );
 
 DEFINE_LAYER_TABLE(

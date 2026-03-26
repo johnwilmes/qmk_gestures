@@ -15,18 +15,13 @@
 
 #include "gesture_test.h"
 
-/* Event IDs for gesture virtual keys */
-enum gesture_events {
-    HOLD_EVENTS(mo1),
-    HOLD_EVENTS(tg2),
-};
-
 DEFINE_HOLD(mo1, KEY_POS(1, 0));
 DEFINE_HOLD(tg2, KEY_POS(1, 1));
 
-DEFINE_GESTURES(
-    HOLD_GESTURE(mo1),  /* 0: hold → MO(1) */
-    HOLD_GESTURE(tg2),  /* 1: hold → TG(2) */
+enum { GS(mo1), GS(tg2) };
+DEFINE_GESTURES_MANUAL(
+    GESTURE_ENTRY(mo1),
+    GESTURE_ENTRY(tg2),
 );
 
 /* --- Key layers --- */
@@ -52,9 +47,9 @@ DEFINE_SPARSE_LAYER(layer2_keys,
 
 /* --- Gesture layers --- */
 
-DEFINE_SPARSE_LAYER(base_gestures,
-    {GE_HOLD_mo1, MO(1)},    /* mo1 hold → momentary layer 1 */
-    {GE_HOLD_tg2, TG(2)}     /* tg2 hold → toggle layer 2 */
+DEFINE_GESTURE_LAYER(base_gestures,
+    HOLD_MAP(mo1, MO(1)),
+    HOLD_MAP(tg2, TG(2)),
 );
 
 DEFINE_LAYER_TABLE(
