@@ -24,44 +24,6 @@
 #include "progmem.h"
 
 /*******************************************************************************
- * Default Layer Table
- ******************************************************************************/
-
-/**
- * Lookup table populated via weak linkage. Each slot is the address of a
- * gesture_layer_t defined by DEFINE_DENSE_LAYER / DEFINE_SPARSE_LAYER.
- * Undefined slots resolve to NULL (address 0 for undefined weak symbols).
- */
-static const gesture_layer_t * const _gl_table[NUM_EVENT_TYPES][NUM_LAYERS] = {
-    [EVENT_TYPE_KEY] = {
-#define _GL_ENTRY(id) &_gl_key_##id,
-#include "layer_slots.inc"
-#undef _GL_ENTRY
-    },
-    [EVENT_TYPE_GESTURE] = {
-#define _GL_ENTRY(id) &_gl_gesture_##id,
-#include "layer_slots.inc"
-#undef _GL_ENTRY
-    },
-    [EVENT_TYPE_ENCODER] = {
-#define _GL_ENTRY(id) &_gl_encoder_##id,
-#include "layer_slots.inc"
-#undef _GL_ENTRY
-    },
-};
-
-__attribute__((weak))
-const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id) {
-    if (layer_id >= NUM_LAYERS) return NULL;
-    return _gl_table[type][layer_id];
-}
-
-__attribute__((weak))
-uint8_t layer_count(void) {
-    return NUM_LAYERS;
-}
-
-/*******************************************************************************
  * Internal State
  ******************************************************************************/
 

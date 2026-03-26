@@ -29,7 +29,7 @@ DEFINE_GESTURES(
 );
 
 /* Layer 0 key mappings: tap keycodes are in the base keymap */
-DEFINE_DENSE_LAYER(key, 0,
+DEFINE_DENSE_LAYER(base_keys,
     KC_A, KC_B, KC_C, KC_D, KC_E, KC_F, KC_G, KC_H, KC_I, KC_J,
     KC_K, KC_L, KC_M, KC_N, KC_O, KC_P, KC_Q, KC_R, KC_S, KC_T,
     KC_U, KC_V, KC_W, KC_X, KC_Y, KC_Z, KC_1, KC_2, KC_3, KC_4,
@@ -37,7 +37,11 @@ DEFINE_DENSE_LAYER(key, 0,
 );
 
 /* Layer 0 gesture mappings: only hold keycodes */
-DEFINE_SPARSE_LAYER(gesture, 0,
+DEFINE_SPARSE_LAYER(base_gestures,
     {GE_HOLD_th_b, KC_LSFT},  /* th_b hold → left shift */
     {GE_HOLD_th_d, KC_LCTL}   /* th_d hold → left ctrl */
+);
+
+DEFINE_LAYER_TABLE(
+    [0] = { .key = &base_keys, .gesture = &base_gestures },
 );

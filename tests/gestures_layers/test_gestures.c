@@ -31,28 +31,34 @@ DEFINE_GESTURES(
 
 /* --- Key layers --- */
 
-DEFINE_DENSE_LAYER(key, 0,
+DEFINE_DENSE_LAYER(base_keys,
     KC_A,   KC_B,   KC_C,   KC_D,   KC_E,  KC_F, KC_G, KC_H, KC_I, KC_J,
     KC_TAB, KC_ESC, KC_K,   KC_L,   KC_M,  KC_N, KC_O, KC_P, KC_Q, KC_R,
     KC_NO,  KC_NO,  KC_NO,  KC_NO,  KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,  KC_NO,  KC_NO,  KC_NO,  KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO
 );
 
-DEFINE_DENSE_LAYER(key, 1,
+DEFINE_DENSE_LAYER(layer1_keys,
     KC_1,     KC_2,     KC_TRNS,  KC_4,     KC_5,     KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
     KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO,    KC_NO, KC_NO, KC_NO, KC_NO, KC_NO
 );
 
-DEFINE_SPARSE_LAYER(key, 2,
+DEFINE_SPARSE_LAYER(layer2_keys,
     {KEY_POS(0, 0), KC_F1},
     {KEY_POS(0, 1), KC_F2}
 );
 
 /* --- Gesture layers --- */
 
-DEFINE_SPARSE_LAYER(gesture, 0,
+DEFINE_SPARSE_LAYER(base_gestures,
     {GE_HOLD_mo1, MO(1)},    /* mo1 hold → momentary layer 1 */
     {GE_HOLD_tg2, TG(2)}     /* tg2 hold → toggle layer 2 */
+);
+
+DEFINE_LAYER_TABLE(
+    [0] = { .key = &base_keys, .gesture = &base_gestures },
+    [1] = { .key = &layer1_keys },
+    [2] = { .key = &layer2_keys },
 );

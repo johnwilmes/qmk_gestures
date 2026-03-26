@@ -12,9 +12,13 @@ uint16_t gesture_count(void) {
     return 0;
 }
 
-DEFINE_DENSE_LAYER(key, 0,
+DEFINE_DENSE_LAYER(base_keys,
     KC_A, KC_B, KC_C, KC_D, KC_E, KC_F, KC_G, KC_H, KC_I, KC_J,
     KC_K, KC_L, KC_M, KC_N, KC_O, KC_P, KC_Q, KC_R, KC_S, KC_T,
     KC_U, KC_V, KC_W, KC_X, KC_Y, KC_Z, KC_1, KC_2, KC_3, KC_4,
     KC_5, KC_6, KC_7, KC_8, KC_9, KC_0, KC_NO, KC_NO, KC_NO, KC_NO
+);
+
+DEFINE_LAYER_TABLE(
+    [0] = { .key = &base_keys },
 );

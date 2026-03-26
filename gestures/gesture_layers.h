@@ -18,17 +18,20 @@
 
 #include "gesture_api.h"
 #include "action_layer.h"
+#include "progmem.h"
 
 /*******************************************************************************
  * Configuration
  ******************************************************************************/
 
-#ifndef NUM_LAYERS
-#    define NUM_LAYERS 8
-#endif
-
 #ifndef MAX_ACTIVE_BINDINGS
 #    define MAX_ACTIVE_BINDINGS 16
+#endif
+
+/* Maximum number of layers supported. QMK's layer_state_t is 32 bits,
+ * so 32 is the hard upper limit. Override to cap lower (saves RAM on AVR). */
+#ifndef MAX_GESTURE_LAYERS
+#    define MAX_GESTURE_LAYERS 32
 #endif
 
 /*******************************************************************************
@@ -80,6 +83,16 @@ typedef struct {
         sparse_layer_t sparse;
     };
 } gesture_layer_t;
+
+/**
+ * Per-layer entry in the layer table. Each field is a pointer to a
+ * gesture_layer_t (or NULL for no mapping of that event type).
+ */
+typedef struct {
+    const gesture_layer_t *key;
+    const gesture_layer_t *gesture;
+    const gesture_layer_t *encoder;
+} gesture_layer_entry_t;
 
 /*******************************************************************************
  * User-Provided Functions
@@ -148,9 +161,7 @@ extern uint8_t gesture_key_index(keypos_t pos);
  * May return NULL if the layer has no mapping for this event type
  * (treated as all-transparent).
  *
- * A weak default implementation is provided in layer.c that looks up
- * layers defined with DEFINE_DENSE_LAYER / DEFINE_SPARSE_LAYER in a
- * table indexed by [event_type][layer_id]. Override with a strong
+ * Default provided by DEFINE_LAYER_TABLE. Override with a strong
  * definition for custom lookup logic.
  */
 const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id);
@@ -158,7 +169,7 @@ const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id);
 /**
  * Return the total number of layers.
  *
- * Weak default returns NUM_LAYERS. Override for dynamic layer counts.
+ * Default provided by DEFINE_LAYER_TABLE. Override for dynamic layer counts.
  */
 uint8_t layer_count(void);
 
@@ -166,64 +177,70 @@ uint8_t layer_count(void);
  * Layer Definition Macros
  ******************************************************************************/
 
-#include "progmem.h"
-
-/* Valid type names for DEFINE_DENSE_LAYER / DEFINE_SPARSE_LAYER.
- * A typo produces "undeclared identifier" at compile time. */
-enum { _gl_valid_key, _gl_valid_gesture, _gl_valid_encoder };
-
-#define _GL_CHECK_TYPE(type_name) \
-    _Static_assert(_gl_valid_##type_name >= 0, \
-        "invalid layer type name: must be key, gesture, or encoder")
-
 /**
- * Weak extern declarations for all layer slots.
- * Undefined slots resolve to address 0 (NULL) at link time via weak linkage.
- */
-#define _GL_ENTRY(id) \
-    extern const gesture_layer_t _gl_key_##id __attribute__((weak)); \
-    extern const gesture_layer_t _gl_gesture_##id __attribute__((weak)); \
-    extern const gesture_layer_t _gl_encoder_##id __attribute__((weak));
-#include "layer_slots.inc"
-#undef _GL_ENTRY
-
-/**
- * Define a dense layer for the default layer table.
- * Creates a PROGMEM keycode array and a gesture_layer_t with a standardized
- * name so the weak default layer_get can find it.
+ * Define a dense layer. Creates a static gesture_layer_t with the given name.
  *
- *   DEFINE_DENSE_LAYER(key, 0, KC_A, KC_B, KC_C, ...)
- *   DEFINE_DENSE_LAYER(key, 1, KC_1, KC_2, KC_TRNS, ...)
+ *   DEFINE_DENSE_LAYER(base_keys, KC_A, KC_B, KC_C, ...)
+ *   DEFINE_DENSE_LAYER(nav_keys, KC_LEFT, KC_DOWN, KC_UP, ...)
  */
-#define DEFINE_DENSE_LAYER(type_name, id, ...) \
-    _GL_CHECK_TYPE(type_name); \
-    static const uint16_t PROGMEM _gl_##type_name##_##id##_map[] = { __VA_ARGS__ }; \
-    const gesture_layer_t _gl_##type_name##_##id = { \
+#define DEFINE_DENSE_LAYER(name, ...) \
+    static const uint16_t PROGMEM _gl_##name##_map[] = { __VA_ARGS__ }; \
+    static const gesture_layer_t name = { \
         .type = LAYER_DENSE, \
         .default_keycode = KC_TRNS, \
         .dense = { \
             .base_index = 0, \
-            .count = sizeof(_gl_##type_name##_##id##_map) / sizeof(uint16_t), \
-            .map = _gl_##type_name##_##id##_map, \
+            .count = sizeof(_gl_##name##_map) / sizeof(uint16_t), \
+            .map = _gl_##name##_map, \
         }, \
     }
 
 /**
- * Define a sparse layer for the default layer table.
- * Creates a PROGMEM sparse_entry_t array and a gesture_layer_t with a
- * standardized name so the weak default layer_get can find it.
+ * Define a sparse layer. Creates a static gesture_layer_t with the given name.
  *
- *   DEFINE_SPARSE_LAYER(gesture, 0, {GE_HOLD_mo1, MO(1)}, {GE_HOLD_tg2, TG(2)})
- *   DEFINE_SPARSE_LAYER(key, 2, {0, KC_F1}, {1, KC_F2})
+ *   DEFINE_SPARSE_LAYER(base_gestures, {GE_HOLD_mo1, MO(1)}, {GE_HOLD_tg2, TG(2)})
+ *   DEFINE_SPARSE_LAYER(nav_keys, {0, KC_LEFT}, {1, KC_DOWN})
  */
-#define DEFINE_SPARSE_LAYER(type_name, id, ...) \
-    _GL_CHECK_TYPE(type_name); \
-    static const sparse_entry_t PROGMEM _gl_##type_name##_##id##_entries[] = { __VA_ARGS__ }; \
-    const gesture_layer_t _gl_##type_name##_##id = { \
+#define DEFINE_SPARSE_LAYER(name, ...) \
+    static const sparse_entry_t PROGMEM _gl_##name##_entries[] = { __VA_ARGS__ }; \
+    static const gesture_layer_t name = { \
         .type = LAYER_SPARSE, \
         .default_keycode = KC_TRNS, \
         .sparse = { \
-            .count = sizeof(_gl_##type_name##_##id##_entries) / sizeof(sparse_entry_t), \
-            .entries = _gl_##type_name##_##id##_entries, \
+            .count = sizeof(_gl_##name##_entries) / sizeof(sparse_entry_t), \
+            .entries = _gl_##name##_entries, \
         }, \
+    }
+
+/**
+ * Define the layer table and provide layer_get / layer_count.
+ * Layer indices can be enum values or integer constants.
+ *
+ * Usage:
+ *   DEFINE_LAYER_TABLE(
+ *       [BASE] = { .key = &base_keys, .gesture = &base_gestures },
+ *       [NAV]  = { .key = &nav_keys },
+ *   );
+ *
+ * Unmentioned event types default to NULL (all-transparent).
+ * Unmentioned layer indices are all-transparent.
+ */
+#define DEFINE_LAYER_TABLE(...) \
+    static const gesture_layer_entry_t _gl_table[] = { __VA_ARGS__ }; \
+    _Static_assert(sizeof(_gl_table) / sizeof(gesture_layer_entry_t) \
+        <= MAX_GESTURE_LAYERS, \
+        "layer count exceeds MAX_GESTURE_LAYERS"); \
+    const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id) { \
+        if (layer_id >= sizeof(_gl_table) / sizeof(gesture_layer_entry_t)) \
+            return NULL; \
+        const gesture_layer_entry_t *entry = &_gl_table[layer_id]; \
+        switch (type) { \
+            case EVENT_TYPE_KEY:     return entry->key; \
+            case EVENT_TYPE_GESTURE: return entry->gesture; \
+            case EVENT_TYPE_ENCODER: return entry->encoder; \
+            default:                return NULL; \
+        } \
+    } \
+    uint8_t layer_count(void) { \
+        return sizeof(_gl_table) / sizeof(gesture_layer_entry_t); \
     }
