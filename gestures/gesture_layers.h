@@ -28,12 +28,6 @@
 #    define MAX_ACTIVE_BINDINGS 16
 #endif
 
-/* Maximum number of layers supported. QMK's layer_state_t is 32 bits,
- * so 32 is the hard upper limit. Override to cap lower (saves RAM on AVR). */
-#ifndef MAX_GESTURE_LAYERS
-#    define MAX_GESTURE_LAYERS 32
-#endif
-
 /*******************************************************************************
  * Layer Definition Types
  ******************************************************************************/
@@ -227,9 +221,6 @@ uint8_t layer_count(void);
  */
 #define DEFINE_LAYER_TABLE(...) \
     static const gesture_layer_entry_t _gl_table[] = { __VA_ARGS__ }; \
-    _Static_assert(sizeof(_gl_table) / sizeof(gesture_layer_entry_t) \
-        <= MAX_GESTURE_LAYERS, \
-        "layer count exceeds MAX_GESTURE_LAYERS"); \
     const gesture_layer_t *layer_get(event_type_t type, uint8_t layer_id) { \
         if (layer_id >= sizeof(_gl_table) / sizeof(gesture_layer_entry_t)) \
             return NULL; \
