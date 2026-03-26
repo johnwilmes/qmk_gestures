@@ -9,18 +9,24 @@ and timeout model.
 
 ```c
 typedef struct {
-    gesture_state_t    state : 2;           // GS_INACTIVE/PARTIAL/ACTIVE/DISABLED
-    gesture_id_t       next : 13;           // Linked list pointer (GESTURE_NULL_ID = 0x1FFF)
-    bool               timeout_outcome : 1; // What happens on timeout
-    uint16_t           expiry;              // Absolute expiry time (16-bit, wrapping)
+    gesture_state_t    state : 2;              // GS_INACTIVE/PARTIAL/ACTIVE/DISABLED
+    gesture_id_t       next : 14;              // Linked list pointer (GESTURE_NULL_ID = 0x3FFF)
+    uint8_t            timeout_outcome;        // 0=cancel, 1..15=which outcome activates
+    uint8_t            num_outcomes;           // Number of possible outcomes (1 for single-outcome)
+    uint16_t           expiry;                 // Absolute expiry time (16-bit, wrapping)
     gesture_callback_t callback;
     void              *user_data;
 } gesture_t;
 ```
 
-Gestures are stored in a user-provided array. The `next` field forms singly
-linked lists for four queues: inactive, partial, active, and disabled. The
-13-bit `next` field supports up to 8191 gestures.
+Gestures are stored in a user-provided pointer array. The `next` field
+forms singly linked lists for four queues: inactive, partial, active, and
+disabled. The 14-bit `next` field supports up to 16383 gestures.
+
+The `timeout_outcome` field encodes what happens on timeout: 0 means
+cancel (return to INACTIVE), 1..15 means activate with that outcome
+number. The `num_outcomes` field records how many outcomes this gesture
+can produce.
 
 ### gesture_coordinator_t
 
@@ -45,9 +51,9 @@ typedef struct {
 ```
 
 The buffer is circular. Three pointers partition it:
-- `buffer_head..unprocessed_head`: events that have been scanned by gesture
-  callbacks, but may still be blocked from emission (e.g., a press blocked
-  while PARTIAL gestures exist, or a candidate is pending activation)
+- `buffer_head..unprocessed_head`: events scanned by gesture callbacks,
+  but may still be blocked from emission (e.g., a press blocked while
+  PARTIAL gestures exist, or a candidate is pending activation)
 - `unprocessed_head..buffer_tail`: events awaiting gesture scanning
 
 ### gesture_buffered_event_t
@@ -71,93 +77,89 @@ typedef gesture_timeout_t (*gesture_callback_t)(
     gesture_query_t       query,
     const gesture_event_t *event,
     uint16_t              remaining_ms,
+    uint8_t               current_outcome,
     void                  *user_data
 );
 ```
+
+The `current_outcome` parameter provides the gesture's current
+`timeout_outcome` value. For INITIAL queries it is 0. For
+ACTIVATION/ACTIVE queries it is the outcome that triggered activation.
 
 ### Query values
 
 | Query | When called | Meaning |
 |-------|------------|---------|
 | `GS_QUERY_INITIAL` | Gesture was INACTIVE, new initial press at front of buffer | Should this gesture participate? |
-| `GS_QUERY_PARTIAL` | Gesture is PARTIAL, `timeout_outcome` is false (would cancel on timeout) | Update with new event |
-| `GS_QUERY_COMPLETE` | Gesture is PARTIAL, `timeout_outcome` is true (would activate on timeout) | Update with new event |
+| `GS_QUERY_PARTIAL` | Gesture is PARTIAL, `timeout_outcome` is 0 (would cancel on timeout) | Update with new event |
+| `GS_QUERY_COMPLETE` | Gesture is PARTIAL, `timeout_outcome` is nonzero (would activate on timeout) | Update with new event |
 | `GS_QUERY_ACTIVATION_INITIAL` | Gesture just activated, first callback during buffer replay | Initialize active state |
 | `GS_QUERY_ACTIVATION_REPLAY` | Gesture activated, subsequent events during buffer replay | Consume or pass events |
 | `GS_QUERY_ACTIVE` | Gesture is active, new event arrived | Consume, update timeout, or deactivate |
 
 The distinction between PARTIAL and COMPLETE lets callbacks know whether
-they are currently on track to activate or cancel at timeout. This is
-critical for the MECE tap/hold pattern: a hold callback and a tap callback
-share state and see the same events, but the coordinator tells each one
-what its current timeout outcome is.
+they are currently on track to activate or cancel on timeout.
 
 ### Return value semantics
 
-The callback returns `gesture_timeout_t { uint16_t timeout; bool outcome; }`.
+The callback returns `gesture_timeout_t { uint16_t timeout; uint8_t outcome; }`.
 
 **During INACTIVE/PARTIAL/COMPLETE (pre-activation):**
 
 | timeout | outcome | Effect |
 |---------|---------|--------|
-| 0 | false | Not interested / cancel. Return to INACTIVE. |
-| 0 | true | Ready to activate immediately. |
-| >0 | false | Stay/become PARTIAL. Cancel on timeout. |
-| >0 | true | Stay/become PARTIAL. Activate on timeout. |
-| NEVER | false | Stay PARTIAL indefinitely, cancel direction. |
-| NEVER | true | Stay PARTIAL indefinitely, activate direction. |
+| 0 | 0 | Not interested / cancel. Return to INACTIVE. |
+| 0 | nonzero | Ready to activate immediately with this outcome. |
+| >0 | 0 | Stay/become PARTIAL. Cancel on timeout. |
+| >0 | nonzero | Stay/become PARTIAL. Activate on timeout with this outcome. |
+| NEVER | 0 | Stay PARTIAL indefinitely, cancel direction. |
+| NEVER | nonzero | Stay PARTIAL indefinitely, activate direction. |
 
 **During ACTIVATION_INITIAL/ACTIVATION_REPLAY (buffer scan):**
 
 | timeout | outcome (press) | outcome (release) | Effect |
 |---------|---------|---------|--------|
-| 0 | true: consume | ignored | Deactivate after scan completes. |
-| 0 | false: pass | ignored | Deactivate after scan completes. |
-| >0 | true: consume | ignored | Continue scan. Rolling timeout checked against next event. |
-| >0 | false: pass | ignored | Continue scan. |
-| NEVER | true: consume | ignored | Continue scan, no timeout. |
-| NEVER | false: pass | ignored | Continue scan. |
+| 0 | nonzero: consume | ignored | Deactivate after scan completes. |
+| 0 | 0: pass | ignored | Deactivate after scan completes. |
+| >0 | nonzero: consume | ignored | Continue scan. Rolling timeout. |
+| >0 | 0: pass | ignored | Continue scan. |
+| NEVER | nonzero: consume | ignored | Continue scan, no timeout. |
+| NEVER | 0: pass | ignored | Continue scan. |
 
 **During ACTIVE (post-activation):**
 
 | timeout | outcome (press) | outcome (release) | Effect |
 |---------|---------|---------|--------|
 | 0 | n/a | n/a | Deactivate immediately. |
-| >0 | true: consume press | ignored | Stay active, update timeout. |
-| >0 | false: pass | ignored | Stay active, update timeout. |
-| NEVER | true/false | ignored | Stay active forever (until callback says otherwise). |
+| >0 | nonzero: consume | ignored | Stay active, update timeout. |
+| >0 | 0: pass | ignored | Stay active, update timeout. |
+| NEVER | nonzero/0 | ignored | Stay active forever. |
 
 Press consumption is the only action outcome controls for active gestures.
-Releases are never consumed -- they always pass through the buffer.
-Encoder events are press-only and consumable like key presses.
+Releases are never consumed. Encoder events are press-only and consumable
+like key presses.
 
 ## 3. Event Processing Pipeline
 
-The gesture system has two entry points from QMK:
-- `gesture_process_event(event)` -- called from `pre_process_record_user` for
-  every key event and encoder event. This is the main processing path.
-- `gesture_tick()` -- called from `matrix_scan_user` on every scan cycle
-  (~1-5ms). Checks `next_timeout` and calls `process_pending_timeouts` if
-  any gesture has expired.
+Two entry points from QMK:
+- `gesture_process_event(event)` -- called from `pre_process_record_gestures`
+  for every key and encoder event. Main processing path.
+- `gesture_tick()` -- called from `housekeeping_task_gestures` on every scan
+  cycle (~1-5ms). Checks timeouts.
 
-Resolved events are emitted downstream via `gesture_emit_event` to custom
-virtual key / action processing that replaces QMK's built-in pipeline.
+Resolved events are emitted via `gesture_emit_event` to the layer system.
 
 ### Trigger events
 
-A "trigger event" is an event that can start a new gesture trigger sequence:
-unconsumed key presses and unconsumed encoder ticks. Key releases and consumed
-events are non-triggers. The `is_trigger_event()` predicate encapsulates this.
-
-Trigger events block the buffer while PARTIAL gestures exist (they might be
-claimed by the resolving gesture). Non-trigger events emit immediately.
+A "trigger event" is an unconsumed key press or encoder tick. Key releases
+and consumed events are non-triggers. Trigger events block the buffer while
+PARTIAL gestures exist. Non-trigger events emit immediately.
 
 ### Main entry: gesture_process_event
 
 ```
 1. Process pending timeouts (if any expired before this event)
 2. Notify active gestures (oldest first)
-   - Expired gestures are skipped (try_emit_head handles their release)
    - If a trigger event is consumed, skip buffering
 3. Buffer the event (if not consumed by an active gesture)
    - Encoder events: coalesce with tail if same direction and unscanned
@@ -168,27 +170,19 @@ claimed by the resolving gesture). Non-trigger events emit immediately.
 
 Consecutive same-direction encoder ticks are coalesced into a single buffer
 entry. When a new encoder event arrives and the buffer tail is an unscanned
-(`unprocessed_head` hasn't reached it) same-direction encoder event, the
-count is incremented instead of pushing a new entry. Once an encoder event
-has been scanned by gesture callbacks, it is sealed and cannot be coalesced
-further.
-
-This limits buffer pressure from encoder bursts: regardless of how many
-same-direction ticks arrive while the buffer is blocked, they occupy at most
-one entry (two for alternating CW/CCW).
+same-direction encoder event, the count is incremented instead of pushing a
+new entry. Once scanned by gesture callbacks, the entry is sealed.
 
 ### try_activate_gesture
 
 Advances `unprocessed_head` by one event. Routes to:
 
-- **scan_inactive_gestures** if no partial gestures and event is a trigger
-  event (unconsumed key press or encoder tick). Scans all inactive gestures.
+- **scan_inactive_gestures** if no partial gestures and event is a trigger.
   Those returning timeout>0 move to PARTIAL. The highest-priority
   immediate-activate candidate is proposed.
 
 - **scan_partial_gestures** if partial gestures exist. All partial gestures
-  see the event. Gestures requesting activation become candidates; those
-  canceling return to INACTIVE. The highest-priority candidate is proposed.
+  see the event. The highest-priority candidate is proposed.
 
 ### propose_candidate
 
@@ -196,182 +190,106 @@ Sets the candidate gesture and evicts all lower-priority partial gestures
 back to INACTIVE. If no higher-priority partial gestures remain, activates
 immediately.
 
-This ensures the invariant: at most one gesture activates per triggering
-press, and it is always the highest-priority one.
-
 ### activate_gesture
 
 ```
-1. Emit virtual press via gesture_event_t (timestamped at buffer head)
+1. Emit virtual press via gesture_event_t with packed (gesture_id, outcome)
 2. Move to ACTIVE queue (append for oldest-first ordering)
-3. Call callback with GS_QUERY_ACTIVATION_INITIAL (triggering press event)
-   - Presses with outcome=true are marked consumed
-4. Replay remaining buffered events through callback (GS_QUERY_ACTIVATION_REPLAY)
-   - Rolling timeout: each result's timeout is checked against the NEXT
-     event's timestamp. If the timeout would expire before the next event,
-     the gesture deactivates at that point.
-   - Presses with outcome=true are marked consumed
-5. Set expiry from last result. If the gesture expired during the scan,
-   `try_emit_head` will deactivate it at the correct buffer position.
-6. Set unprocessed_head to buffer_second_position (triggering press is
-   claimed; don't let other gestures trigger on it)
+3. Call callback with GS_QUERY_ACTIVATION_INITIAL (triggering press)
+   - Presses with nonzero outcome are marked consumed
+4. Replay remaining buffered events (GS_QUERY_ACTIVATION_REPLAY)
+   - Rolling timeout: each result checked against next event's timestamp
+5. Set expiry from last result
+6. Advance unprocessed_head past the triggering press
 ```
-
-The rolling timeout model simulates real-time playback. A callback returning
-timeout=50 on event A at t=100 means "deactivate at t=150 if nothing else
-happens." If event B arrives at t=120, the gesture sees B. If B's callback
-returns timeout=50, the new deadline is t=170, and so on.
 
 ### try_emit_head
 
-Returns false if:
-- Buffer is empty
-- `buffer_head == unprocessed_head` (nothing processed yet)
-- Head is a trigger event and PARTIAL gestures exist (blocked)
-
-Otherwise:
-1. Check all active gesture expiries against the head event's timestamp.
-   Deactivate any whose expiry falls before this event. This is the mechanism
-   for correctly interleaving virtual releases with physical events.
-2. Emit the head event:
-   - Consumed: silently dropped
-   - Encoder: emit via `emit_press` (no history tracking)
-   - Key press: emit via `emit_press` (sets history bit)
-   - Key release: emit via `emit_release` (checks history bit; suppresses
-     orphaned releases)
+Returns false if buffer is empty, nothing processed, or head is a blocked
+trigger event. Otherwise:
+1. Check active gesture expiries against head event's timestamp. Deactivate
+   expired gestures.
+2. Emit the head event (consumed events are silently dropped).
 3. Advance buffer head.
 
 ### deactivate_gesture
 
-Emits virtual release immediately (not buffered). The caller is responsible
-for calling it at the correct point:
-- `try_emit_head`: expiry check before each emission
-- `process_pending_timeouts`: timer-based expiry
-- `gesture_process_event`: cleanup pass for expired gestures when buffer is empty
-
-After emitting, the gesture moves to INACTIVE (or stays DISABLED if
-`gesture_disable` was called while it was active).
+Emits virtual release with packed `(gesture_id, outcome)` immediately (not
+buffered).
 
 ### notify_active_gestures
 
-Called on every new event before buffering. Iterates the active queue
-(oldest-activated first). Each gesture's callback is called with
-GS_QUERY_ACTIVE. If timeout=0, the gesture's expiry is set to
-`event.time` -- `try_emit_head` will deactivate it at the correct
-buffer position. If a trigger event (key press or encoder tick) has
-outcome=true, the event is consumed (not buffered) and no further active
-gestures see it (tenure model: oldest gesture has first claim).
-
-Gestures whose expiry is already past are skipped -- their release will
-be handled by `try_emit_head` at the correct buffer position.
-
-Edge case: if the trigger event is consumed and the buffer is empty,
-there is nothing for `try_emit_head` to process. `gesture_process_event`
-runs a cleanup pass after the main loop to deactivate expired active
-gestures when the buffer is empty.
+Called on every new event before buffering. Iterates active queue
+oldest-first. Each callback is called with GS_QUERY_ACTIVE. If timeout=0,
+gesture expiry is set for `try_emit_head` to handle. If a trigger event
+has nonzero outcome, the event is consumed and no further active gestures
+see it (tenure model).
 
 ## 4. Timeout Model
 
-All timeouts are stored as absolute 16-bit expiry times on `gesture_t.expiry`.
-Callbacks return relative timeouts; the coordinator converts:
-`expiry = event.time + timeout`.
+All timeouts are stored as absolute 16-bit expiry times. Callbacks return
+relative timeouts; the coordinator converts: `expiry = event.time + timeout`.
 
-The only special value is `GESTURE_TIMEOUT_NEVER (0xFFFF)`: never expires.
-When a callback returns `timeout = 0`, the expiry is set to `event_time`
-(a real timestamp that is already in the past), so the normal expiry checks
-handle it. If the computed expiry wraps to `0xFFFF`, it is clamped to
-`0xFFFE` to avoid collision with the NEVER sentinel.
+`GESTURE_TIMEOUT_NEVER (0xFFFF)` means never expires. If computed expiry
+wraps to `0xFFFF`, it is clamped to `0xFFFE`.
 
-The coordinator tracks a single `next_timeout` -- the soonest expiry across
-all PARTIAL and ACTIVE gestures. `gesture_tick` checks this on every matrix
-scan iteration. If expired, `process_pending_timeouts` scans both queues.
-
-16-bit timer wraps every ~65 seconds. `timer_expired()` handles wraparound
-correctly for intervals under ~32 seconds, which is well beyond any
-practical gesture timeout.
+The coordinator tracks `next_timeout` -- the soonest expiry. `gesture_tick`
+checks this every matrix scan. 16-bit timer wraps every ~65 seconds.
 
 ### Remaining time for callbacks
 
-When calling a callback, the coordinator passes `remaining_ms`:
-`remaining = compute_remaining(g->expiry, event.time)`. If the expiry has
-passed, remaining is 0. If expiry is NEVER, remaining is NEVER. Otherwise
-it is the arithmetic difference. `timer_expired()` handles 16-bit
-wraparound for the "is it expired?" check. The `expiry - now` subtraction
-also handles wraparound correctly via unsigned arithmetic, since
-`timer_expired` already confirmed the expiry is in the future (within the
-~32s window). The NEVER sentinel is checked first.
+The coordinator passes `remaining_ms = compute_remaining(g->expiry, event.time)`.
+If expired, 0. If NEVER, NEVER. Otherwise the arithmetic difference.
 
 ## 5. Press History Bitmap
 
-Maps every physical key position and every gesture ID to a dense bit index:
+Maps key positions and gesture IDs to dense bit indices:
 
 ```c
-physical: event.event_id                   // 0..NUM_KEY_POSITIONS-1 (EVENT_TYPE_KEY)
-gesture:  GESTURE_OFFSET + event.event_id  // NUM_KEY_POSITIONS..NUM_KEY_POSITIONS+MAX_GESTURES-1 (EVENT_TYPE_GESTURE)
-encoder:  (not tracked)                    // Encoder events are press-only, no history needed
+physical key: event.event_id                       // 0..NUM_KEY_POSITIONS-1
+gesture:      GESTURE_OFFSET + event.gesture.gesture_id  // one bit per gesture, not per outcome
+encoder:      (not tracked)                        // press-only, no release
 ```
 
-Physical key indices arrive as `event_id` in `gesture_event_t` events of
-type `EVENT_TYPE_KEY`. The user maps matrix positions to dense key indices
-at the pipeline entry point (`pre_process_record_user`) before calling
-`gesture_process_event`. See overview.md for the wiring pattern.
-
-When a key press is emitted, its bit is set. When a release is emitted, the
-bit is checked: if set, clear it and emit the release. If not set, the
-corresponding press was consumed, so the release is silently dropped.
-
-Encoder events (`EVENT_TYPE_ENCODER`) bypass history tracking entirely.
-They are press-only — there is no release to match. `emit_press` skips
-the history bit for encoder events, and `emit_release` is a no-op.
+When a press is emitted, its bit is set. When a release is emitted, the
+bit is checked: if set, clear and emit; if not set (press was consumed),
+silently drop the release.
 
 Size: `(NUM_KEY_POSITIONS + MAX_GESTURES + 7) / 8` bytes.
 
 ## 6. Buffer Overflow
 
 When the buffer is full:
-1. Cancel all PARTIAL gestures (return to INACTIVE)
+1. Cancel all PARTIAL gestures
 2. If a candidate exists, activate it immediately
-3. Force-drain the buffer via `try_emit_head`
+3. Force-drain the buffer
 4. Last resort: drop the head event
-
-This ensures forward progress. Overflow is unlikely with typical buffer
-sizes (12-16 events) but can occur with complex leader-key sequences or
-extremely fast typing during gesture resolution.
 
 ## 7. Queue Semantics
 
 | Queue | Order | Purpose |
 |-------|-------|---------|
-| Inactive | Unsorted | Pool of gestures waiting for triggers |
-| Partial | Ascending by ID (lowest priority first) | Gestures currently being resolved |
-| Active | Ordered by activation time (oldest first) | Active gestures consuming events |
-| Disabled | Unordered | Administratively disabled gestures |
+| Inactive | Unsorted | Pool waiting for triggers |
+| Partial | Ascending by ID (lowest priority first) | Being resolved |
+| Active | Ordered by activation time (oldest first) | Consuming events |
+| Disabled | Unordered | Administratively disabled |
 
-The partial queue's ascending sort order is load-bearing for two reasons:
+The partial queue's ascending sort is load-bearing:
 
-1. **Eviction efficiency in `propose_candidate`**: lower-priority gestures
-   are at the head, so evicting all gestures below the candidate is a simple
-   head-pop loop rather than scattered `queue_remove` calls.
+1. **Eviction efficiency**: lower-priority gestures at the head allow
+   simple head-pop loops in `propose_candidate`.
 
-2. **Iteration safety in `process_pending_timeouts`**: the loop visits
-   low-priority gestures first. When a higher-priority gesture later calls
-   `propose_candidate`, it only evicts entries behind the iteration cursor
-   (already visited). This guarantees the saved `next_id` is never removed
-   from the queue mid-iteration, so no gestures are skipped.
-
-Disabled gestures in the inactive queue are discovered lazily during
-`scan_inactive_gestures` and moved to the disabled queue. This avoids
-an O(n) search of the unsorted inactive queue during `gesture_disable`.
+2. **Iteration safety**: `process_pending_timeouts` visits low-priority
+   first. When a higher-priority gesture calls `propose_candidate`, it
+   only evicts entries behind the cursor.
 
 ## 8. Invariants
 
-1. The triggering event is always at `buffer_head` when `activate_gesture`
-   runs.
+1. The triggering event is at `buffer_head` when `activate_gesture` runs.
 2. `try_emit_head` blocks trigger events while PARTIAL gestures exist.
 3. At most one gesture activates per triggering event.
-4. A consumed key press's release is silently dropped (press history).
-5. Once a trigger event is consumed, it cannot trigger new gestures.
-6. Virtual releases are emitted at the correct chronological position
-   relative to buffered events (via expiry check in `try_emit_head`).
+4. A consumed press's release is silently dropped (press history).
+5. Once consumed, a trigger event cannot trigger new gestures.
+6. Virtual releases are interleaved correctly with buffered events.
 7. Active gestures see events oldest-first (tenure model).
-8. Encoder events are press-only and bypass press history tracking.
+8. Encoder events bypass press history (press-only, no release).
