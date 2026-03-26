@@ -4,10 +4,8 @@
 
 #include "gesture_test.h"
 
-static gesture_t gestures[1];
-
 gesture_t *gesture_get(gesture_id_t index) {
-    return &gestures[index];
+    return NULL;
 }
 
 uint16_t gesture_count(void) {

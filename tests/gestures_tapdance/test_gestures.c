@@ -20,17 +20,9 @@ enum gesture_events {
 
 DEFINE_TAPDANCE(td, KEY_POS(0, 1), 2);
 
-static gesture_t gestures[] = {
+DEFINE_GESTURES(
     TAPDANCE_GESTURE(td, 2),  /* single gesture: hold(1), tap(2), hold(2) */
-};
-
-gesture_t *gesture_get(gesture_id_t index) {
-    return &gestures[index];
-}
-
-uint16_t gesture_count(void) {
-    return sizeof(gestures) / sizeof(gesture_t);
-}
+);
 
 /* Layer 0 key mappings: single tap keycode in base keymap */
 DEFINE_DENSE_LAYER(key, 0,

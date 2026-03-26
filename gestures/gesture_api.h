@@ -226,12 +226,14 @@ bool gesture_is_enabled(gesture_id_t gesture_id);
 bool gesture_is_active(gesture_id_t gesture_id);
 
 /**
- * User must define: return pointer to gesture definition at index.
+ * Return pointer to gesture definition at index.
+ * Override for custom lookup logic; default provided by DEFINE_GESTURES.
  */
 gesture_t *gesture_get(gesture_id_t index);
 
 /**
- * User must define: return total number of gestures.
+ * Return total number of gestures.
+ * Override for custom lookup logic; default provided by DEFINE_GESTURES.
  */
 uint16_t gesture_count(void);
 
@@ -250,4 +252,23 @@ uint16_t gesture_count(void);
  * Create a gesture_timeout_t with specified values.
  */
 #define GESTURE_TIMEOUT(t, o) ((gesture_timeout_t){.timeout = (t), .outcome = (uint8_t)(o)})
+
+/**
+ * Define the gesture array and provide gesture_get / gesture_count.
+ *
+ * Usage:
+ *   DEFINE_GESTURES(
+ *       COMBO_GESTURE(my_combo),
+ *       HOLD_GESTURE(my_hold),
+ *       TAPDANCE_GESTURE(my_td, 3),
+ *   );
+ */
+#define DEFINE_GESTURES(...) \
+    static gesture_t _gestures[] = { __VA_ARGS__ }; \
+    gesture_t *gesture_get(gesture_id_t index) { \
+        return &_gestures[index]; \
+    } \
+    uint16_t gesture_count(void) { \
+        return sizeof(_gestures) / sizeof(gesture_t); \
+    }
 

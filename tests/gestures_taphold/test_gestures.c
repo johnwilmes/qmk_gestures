@@ -23,19 +23,10 @@ enum gesture_events {
 DEFINE_HOLD(th_b, KEY_POS(0, 1));
 DEFINE_HOLD(th_d, KEY_POS(0, 3));
 
-/* Gesture array */
-static gesture_t gestures[] = {
+DEFINE_GESTURES(
     HOLD_GESTURE(th_b),  /* 0: hold → KC_LSFT */
     HOLD_GESTURE(th_d),  /* 1: hold → KC_LCTL */
-};
-
-gesture_t *gesture_get(gesture_id_t index) {
-    return &gestures[index];
-}
-
-uint16_t gesture_count(void) {
-    return sizeof(gestures) / sizeof(gesture_t);
-}
+);
 
 /* Layer 0 key mappings: tap keycodes are in the base keymap */
 DEFINE_DENSE_LAYER(key, 0,

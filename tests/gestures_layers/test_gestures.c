@@ -24,18 +24,10 @@ enum gesture_events {
 DEFINE_HOLD(mo1, KEY_POS(1, 0));
 DEFINE_HOLD(tg2, KEY_POS(1, 1));
 
-static gesture_t gestures[] = {
+DEFINE_GESTURES(
     HOLD_GESTURE(mo1),  /* 0: hold → MO(1) */
     HOLD_GESTURE(tg2),  /* 1: hold → TG(2) */
-};
-
-gesture_t *gesture_get(gesture_id_t index) {
-    return &gestures[index];
-}
-
-uint16_t gesture_count(void) {
-    return sizeof(gestures) / sizeof(gesture_t);
-}
+);
 
 /* --- Key layers --- */
 
