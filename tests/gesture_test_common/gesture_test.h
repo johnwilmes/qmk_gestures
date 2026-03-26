@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include "gesture.h"
-#include "layer.h"
+#include "gestures.h"
 #include "quantum.h"
 
 /* Dense key index from matrix position.

@@ -6,8 +6,7 @@
  * the _user hooks.
  */
 
-#include "gesture.h"
-#include "layer.h"
+#include "gesture_internal.h"
 #include "quantum.h"
 
 extern bool pre_process_record_gestures(uint16_t keycode, keyrecord_t *record);

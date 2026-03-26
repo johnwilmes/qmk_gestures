@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "gesture.h"
+#include "gesture_api.h"
 #include "action_layer.h"
 
 /*******************************************************************************
@@ -80,49 +80,6 @@ typedef struct {
         sparse_layer_t sparse;
     };
 } gesture_layer_t;
-
-/*******************************************************************************
- * Binding Table
- ******************************************************************************/
-
-/**
- * Tracks which keycode was resolved at press time, so the matching release
- * always undoes the same keycode regardless of layer changes in between.
- *
- * Layer keycodes (MO, TG, etc.) also use bindings so the release knows
- * which layer to deactivate.
- */
-typedef struct {
-    event_type_t event_type;
-    uint16_t     event_id;
-    uint16_t     keycode;
-} binding_entry_t;
-
-/*******************************************************************************
- * Layer System State
- ******************************************************************************/
-
-typedef struct {
-    binding_entry_t bindings[MAX_ACTIVE_BINDINGS];
-} layer_system_t;
-
-/*******************************************************************************
- * Public API
- ******************************************************************************/
-
-/**
- * Initialize the layer system. Call from keyboard_post_init_user.
- */
-void layers_init(void);
-
-/**
- * Resolve a key event to a keycode by iterating active layers.
- *
- * @param type      Event type namespace
- * @param event_id  Dense index within that namespace
- * @return          Resolved keycode (KC_TRNS if no layer has a mapping)
- */
-uint16_t layer_resolve(event_type_t type, uint16_t event_id);
 
 /*******************************************************************************
  * User-Provided Functions

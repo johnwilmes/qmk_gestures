@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gesture.h"
+#include "gesture_api.h"
 
 /*******************************************************************************
  * Tap Dance / Hold Gestures

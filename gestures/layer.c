@@ -15,7 +15,7 @@
  */
 
 #include <string.h>
-#include "layer.h"
+#include "gesture_internal.h"
 #include "keycodes.h"
 #include "quantum_keycodes.h"
 #include "action.h"

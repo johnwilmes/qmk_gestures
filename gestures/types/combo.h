@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gesture.h"
+#include "gesture_api.h"
 #include "progmem.h"
 
 typedef uint8_t combo_active_mask_t;

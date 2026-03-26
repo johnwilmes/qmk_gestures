@@ -200,86 +200,9 @@ typedef struct {
 #define GESTURE(cb, ud, base_eid, n_outcomes) \
     (gesture_t){.callback = cb, .user_data = ud, .base_event_id = base_eid, .num_outcomes = n_outcomes}
 
-/**
- * Buffered event with consumption tracking.
- */
-typedef struct {
-    gesture_event_t event;
-    bool            is_consumed;
-} gesture_buffered_event_t;
-
-/*******************************************************************************
- * History Bitmap (internal to gesture system)
- ******************************************************************************/
-
-/* Dense index mapping for press history bitmap.
- * Physical keys: 0..NUM_KEY_POSITIONS-1
- * Gesture virtual keys: GESTURE_OFFSET..GESTURE_OFFSET+NUM_GESTURE_EVENTS-1 */
-#define GESTURE_OFFSET         NUM_KEY_POSITIONS
-#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + NUM_GESTURE_EVENTS + 7) / 8)
-
-/*******************************************************************************
- * Coordinator State
- ******************************************************************************/
-
-/**
- * Central gesture coordinator state.
- *
- * Maintains event buffer, gesture queues, and timeout tracking.
- */
-typedef struct {
-    // Event buffer (circular)
-    gesture_buffered_event_t buffer[GESTURE_BUFFER_SIZE];
-    uint8_t                  buffer_head;       // Oldest event index
-    uint8_t                  buffer_tail;       // Next write position
-    uint8_t                  unprocessed_head;  // Next event for gesture processing
-
-    // Gesture queues (linked lists via gesture_t.next)
-    gesture_id_t             inactive_head;     // Unsorted
-    gesture_id_t             partial_head;      // Ascending by ID (lowest priority first)
-    gesture_id_t             active_head;       // Ordered by activation time (oldest first)
-    gesture_id_t             disabled_head;     // Disabled gestures
-
-    // Candidate gesture awaiting activation
-    gesture_id_t             candidate;         // GESTURE_NULL_ID if none
-
-    // Timeout tracking
-    uint16_t                 next_timeout;      // Absolute time of next expiration (GESTURE_TIMEOUT_NEVER = none)
-
-    // Press history bitmap (for release matching)
-    uint8_t                  press_history[GESTURE_HISTORY_SIZE];
-} gesture_coordinator_t;
-
 /*******************************************************************************
  * Public API
  ******************************************************************************/
-
-/**
- * Initialize the gesture system.
- * Must be called before any other gesture functions.
- */
-void gestures_init(void);
-
-/**
- * Process an event through the gesture system.
- *
- * Main entry point for physical key events and encoder events. The caller
- * converts QMK events to gesture_event_t at the pipeline entry point.
- * Encoder events (EVENT_TYPE_ENCODER) are aggregated: consecutive
- * same-direction ticks are coalesced into a single buffer entry.
- *
- * @param event  The event to process (EVENT_TYPE_KEY or EVENT_TYPE_ENCODER)
- * @return       false (events are released from buffer asynchronously)
- */
-bool gesture_process_event(gesture_event_t event);
-
-/**
- * Periodic tick handler for gesture timeouts.
- *
- * Call this from matrix_scan_user or a similar periodic function.
- * Handles timeout-based gesture state transitions.
- */
-void gesture_tick(void);
 
 /**
  * Enable a previously disabled gesture.
@@ -315,21 +238,9 @@ uint16_t gesture_count(void);
 /**
  * User must define: map a QMK matrix position to a dense key index
  * (0..NUM_KEY_POSITIONS-1). Called at pipeline entry and by the layer
- * system's keymap introspection override. Declared in layer.h (where
- * the QMK keypos_t type is available).
+ * system's keymap introspection override. Declared in gesture_layers.h
+ * (where the QMK keypos_t type is available).
  */
-
-/**
- * Emit a resolved event to the layer system.
- *
- * Provided by the layer system (layers/layer.c). Called when a physical
- * key event or encoder event is released from the buffer
- * (EVENT_TYPE_KEY, EVENT_TYPE_ENCODER) or when a gesture
- * activates/deactivates (EVENT_TYPE_GESTURE). The layer system resolves
- * the event to a keycode and hands it to QMK for execution. For encoder
- * events, the count field indicates how many ticks to emit.
- */
-void gesture_emit_event(gesture_event_t event);
 
 /*******************************************************************************
  * Helper Macros
@@ -340,9 +251,3 @@ void gesture_emit_event(gesture_event_t event);
  */
 #define GESTURE_TIMEOUT(t, o) ((gesture_timeout_t){.timeout = (t), .outcome = (uint8_t)(o)})
 
-/**
- * Define a minimal QMK keymaps array. The gesture module bypasses QMK's
- * layer lookup, but the keymaps symbol must exist for the build to link.
- */
-#define GESTURES_EMPTY_KEYMAP \
-    const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {[0] = {{0}}};

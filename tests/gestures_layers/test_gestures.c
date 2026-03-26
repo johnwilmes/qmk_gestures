@@ -14,7 +14,6 @@
  */
 
 #include "gesture_test.h"
-#include "tapdance.h"
 
 /* Event IDs for gesture virtual keys */
 enum gesture_events {
