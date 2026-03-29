@@ -51,7 +51,7 @@ gesture_timeout_t combo_gesture_callback(gesture_id_t id, gesture_query_t state,
  *   DEFINE_GESTURES(my_combo);
  *
  *   DEFINE_GESTURE_LAYER(base_gestures,
- *       COMBO_MAP(my_combo, KC_ESC),
+ *       GESTURE_MAP(my_combo, KC_ESC),
  *   );
  ******************************************************************************/
 

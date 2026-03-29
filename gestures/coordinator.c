@@ -14,12 +14,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string.h>
 #include "gesture_internal.h"
 #include "timer.h"
 
 /*******************************************************************************
  * Static Coordinator State
  ******************************************************************************/
+
+extern uint8_t _gs_press_history[];
 
 static gesture_coordinator_t coordinator;
 
@@ -151,10 +154,9 @@ void gestures_init(void) {
     // Initialize timeout tracking
     coordinator.next_timeout = GESTURE_TIMEOUT_NEVER;
 
-    // Clear press history
-    for (uint8_t i = 0; i < GESTURE_HISTORY_SIZE; i++) {
-        coordinator.press_history[i] = 0;
-    }
+    // Assign and clear press history
+    coordinator.press_history = _gs_press_history;
+    memset(coordinator.press_history, 0, (gesture_key_count() + gesture_count() + 7) / 8);
 }
 
 bool gesture_process_event(gesture_event_t event) {
@@ -344,7 +346,7 @@ static bool history_test(uint16_t index) {
  * Gesture events index by gesture_id (one bit per gesture, not per outcome). */
 static inline uint16_t history_index(gesture_event_t event) {
     if (event.type == EVENT_TYPE_GESTURE) {
-        return GESTURE_OFFSET + event.gesture.gesture_id;
+        return gesture_key_count() + event.gesture.gesture_id;
     }
     return event.event_id;
 }

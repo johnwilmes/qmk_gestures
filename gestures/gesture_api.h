@@ -23,18 +23,6 @@
  * Configuration
  ******************************************************************************/
 
-/* Maximum number of gestures supported */
-#ifndef MAX_GESTURES
-#    define MAX_GESTURES 64
-#endif
-
-/* Number of physical key positions (dense index 0..NUM_KEY_POSITIONS-1).
- * Defaults to the full matrix size. Override if the user's key index
- * mapping uses fewer positions. */
-#ifndef NUM_KEY_POSITIONS
-#    define NUM_KEY_POSITIONS (MATRIX_ROWS * MATRIX_COLS)
-#endif
-
 /* Event buffer size - increase for complex sequences (leader key, tap dance) */
 #ifndef GESTURE_BUFFER_SIZE
 #    define GESTURE_BUFFER_SIZE 12
@@ -282,10 +270,10 @@ uint16_t gesture_count(void);
     static gesture_t *const _gs_ptrs[] = { \
         _GS_MAP(_GS_PTR, __VA_ARGS__) \
     }; \
+    enum { GESTURE_COUNT = sizeof(_gs_ptrs) / sizeof(gesture_t*) }; \
+    uint8_t _gs_press_history[(NUM_KEY_POSITIONS + GESTURE_COUNT + 7) / 8]; \
     gesture_t *gesture_get(gesture_id_t id) { return _gs_ptrs[id]; } \
-    uint16_t gesture_count(void) { \
-        return sizeof(_gs_ptrs) / sizeof(gesture_t*); \
-    }
+    uint16_t gesture_count(void) { return GESTURE_COUNT; }
 
 /**
  * Manual gesture registration entry (fallback when _GS_MAP is unavailable).
@@ -301,7 +289,7 @@ uint16_t gesture_count(void);
 
 #define DEFINE_GESTURES_MANUAL(...) \
     static gesture_t *const _gs_ptrs[] = { __VA_ARGS__ }; \
+    enum { GESTURE_COUNT = sizeof(_gs_ptrs) / sizeof(gesture_t*) }; \
+    uint8_t _gs_press_history[(NUM_KEY_POSITIONS + GESTURE_COUNT + 7) / 8]; \
     gesture_t *gesture_get(gesture_id_t id) { return _gs_ptrs[id]; } \
-    uint16_t gesture_count(void) { \
-        return sizeof(_gs_ptrs) / sizeof(gesture_t*); \
-    }
+    uint16_t gesture_count(void) { return GESTURE_COUNT; }

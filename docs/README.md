@@ -81,10 +81,10 @@ DEFINE_DENSE_LAYER(base_keys,
 
 // Gesture layer (gesture outcomes mapped to keycodes)
 DEFINE_GESTURE_LAYER(base_gestures,
-    HOLD_MAP(home_a,    KC_LGUI),
-    HOLD_MAP(home_s,    KC_LALT),
-    COMBO_MAP(esc_combo, KC_ESC),
-    TD_MAP(my_td, 3,    KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
+    GESTURE_MAP(home_a,    KC_LGUI),
+    GESTURE_MAP(home_s,    KC_LALT),
+    GESTURE_MAP(esc_combo, KC_ESC),
+    GESTURE_MAP(my_td,     KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
 );
 
 // Encoder layer

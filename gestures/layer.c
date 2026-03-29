@@ -121,6 +121,31 @@ static uint16_t key_sparse_lookup(const sparse_key_layer_t *sl, uint16_t key_ind
  * Gesture Layer Resolution
  ******************************************************************************/
 
+static uint16_t gesture_dense_lookup(const dense_gesture_layer_t *dl,
+                                      uint16_t gesture_id, uint8_t outcome,
+                                      uint16_t default_keycode) {
+    if (gesture_id >= gesture_count()) return default_keycode;
+    const uint16_t *keycodes = dl->map[gesture_id];
+    if (!keycodes) return default_keycode;
+    uint8_t num = gesture_get(gesture_id)->num_outcomes;
+    if (outcome < 1 || outcome > num) return default_keycode;
+    return keycodes[outcome - 1];
+}
+
+static uint16_t gesture_sparse_lookup(const sparse_gesture_layer_t *sl,
+                                       uint16_t gesture_id, uint8_t outcome,
+                                       uint16_t default_keycode) {
+    for (uint16_t j = 0; j < sl->count; j++) {
+        if (sl->entries[j].gesture_id == gesture_id) {
+            uint8_t num = gesture_get(gesture_id)->num_outcomes;
+            if (outcome < 1 || outcome > num) return default_keycode;
+            uint16_t kc = sl->entries[j].keycodes[outcome - 1];
+            return (kc != KC_TRNS) ? kc : default_keycode;
+        }
+    }
+    return default_keycode;
+}
+
 static uint16_t resolve_gesture(uint16_t gesture_id, uint8_t outcome) {
     uint8_t count = layer_count();
     layer_state_t active = layer_state | default_layer_state;
@@ -131,15 +156,13 @@ static uint16_t resolve_gesture(uint16_t gesture_id, uint8_t outcome) {
         const gesture_layer_t *layer = gesture_layer_get(i);
         if (!layer) continue;
 
-        for (uint16_t j = 0; j < pgm_read_word(&layer->count); j++) {
-            uint8_t eid = pgm_read_byte(&layer->entries[j].gesture_id);
-            uint8_t eout = pgm_read_byte(&layer->entries[j].outcome);
-            if (eid == gesture_id && eout == outcome) {
-                uint16_t keycode = pgm_read_word(&layer->entries[j].keycode);
-                if (keycode != KC_TRNS) return keycode;
-                break;  // found entry but KC_TRNS — fall through to next layer
-            }
+        uint16_t keycode;
+        if (layer->type == GESTURE_LAYER_DENSE) {
+            keycode = gesture_dense_lookup(&layer->dense, gesture_id, outcome, layer->default_keycode);
+        } else {
+            keycode = gesture_sparse_lookup(&layer->sparse, gesture_id, outcome, layer->default_keycode);
         }
+        if (keycode != KC_TRNS) return keycode;
     }
     return KC_TRNS;
 }

@@ -21,8 +21,8 @@
  *   DEFINE_GESTURES(home_a, my_td);
  *
  *   DEFINE_GESTURE_LAYER(base_gestures,
- *       HOLD_MAP(home_a,   KC_LGUI),
- *       TD_MAP(my_td, 3,   KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
+ *       GESTURE_MAP(home_a, KC_LGUI),
+ *       GESTURE_MAP(my_td,  KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
  *   );
  ******************************************************************************/
 

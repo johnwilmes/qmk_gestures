@@ -48,8 +48,8 @@ DEFINE_SPARSE_LAYER(layer2_keys,
 /* --- Gesture layers --- */
 
 DEFINE_GESTURE_LAYER(base_gestures,
-    HOLD_MAP(mo1, MO(1)),
-    HOLD_MAP(tg2, TG(2)),
+    GESTURE_MAP(mo1, MO(1)),
+    GESTURE_MAP(tg2, TG(2)),
 );
 
 DEFINE_LAYER_TABLE(

@@ -31,7 +31,7 @@ enum { GS(esc_combo) };
 DEFINE_GESTURES_MANUAL(GESTURE_ENTRY(esc_combo));
 
 DEFINE_GESTURE_LAYER(base_gestures,
-    COMBO_MAP(esc_combo, KC_ESC),
+    GESTURE_MAP(esc_combo, KC_ESC),
 );
 ```
 
@@ -115,7 +115,7 @@ enum { GS(home_a) };
 DEFINE_GESTURES_MANUAL(GESTURE_ENTRY(home_a));
 
 DEFINE_GESTURE_LAYER(base_gestures,
-    HOLD_MAP(home_a, KC_LGUI),
+    GESTURE_MAP(home_a, KC_LGUI),
 );
 ```
 
@@ -227,12 +227,12 @@ General: `hold(n) = 2n-1`, `tap(n) = 2(n-1)` for n>=2.
 
 ```c
 DEFINE_GESTURE_LAYER(base_gestures,
-    TD_MAP(my_td, 3, KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
+    GESTURE_MAP(my_td, KC_LSFT, KC_X, KC_LCTL, KC_Y, KC_LALT),
     //                hold(1)  tap(2) hold(2)  tap(3) hold(3)
 );
 ```
 
-`TD_MAP` expands to one `gesture_entry_t` per outcome with the correct
+`GESTURE_MAP` expands to a compound literal keycode array with the correct
 outcome numbers.
 
 ### Dance resolution
@@ -256,7 +256,7 @@ The single gesture tracks the full press sequence:
 DEFINE_TAPDANCE(td, POS_B, 2)
 
 DEFINE_GESTURE_LAYER(base_gestures,
-    TD_MAP(td, 2, KC_LSFT, KC_X, KC_LCTL),
+    GESTURE_MAP(td, KC_LSFT, KC_X, KC_LCTL),
 );
 ```
 
@@ -417,8 +417,7 @@ combo callback itself.
 
 ### Layer mapping macros
 
-The `HOLD_MAP`, `TD_MAP`, `COMBO_MAP`, and `ENCODER_MAP` macros abstract
-away outcome numbering. `TD_MAP(name, max, kc1, kc2, ...)` expands to the
-correct number of `gesture_entry_t` initializers with the right outcome
-numbers. Users list keycodes in outcome order without needing to know the
+The `GESTURE_MAP` and `ENCODER_MAP` macros abstract away outcome numbering.
+`GESTURE_MAP(name, kc1, kc2, ...)` expands to a compound literal keycode
+array. Users list keycodes in outcome order without needing to know the
 encoding scheme.

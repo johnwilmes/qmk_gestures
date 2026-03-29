@@ -36,11 +36,9 @@ typedef struct {
  ******************************************************************************/
 
 /* Dense index mapping for press history bitmap.
- * Physical keys: 0..NUM_KEY_POSITIONS-1
- * Gesture events: GESTURE_OFFSET..GESTURE_OFFSET+MAX_GESTURES-1
+ * Physical keys: 0..gesture_key_count()-1
+ * Gesture events: gesture_key_count()..gesture_key_count()+gesture_count()-1
  * (one bit per gesture — each gesture has at most one active outcome) */
-#define GESTURE_OFFSET         NUM_KEY_POSITIONS
-#define GESTURE_HISTORY_SIZE   ((GESTURE_OFFSET + MAX_GESTURES + 7) / 8)
 
 /*******************************************************************************
  * Coordinator State
@@ -70,8 +68,8 @@ typedef struct {
     // Timeout tracking
     uint16_t                 next_timeout;      // Absolute time of next expiration (GESTURE_TIMEOUT_NEVER = none)
 
-    // Press history bitmap (for release matching)
-    uint8_t                  press_history[GESTURE_HISTORY_SIZE];
+    // Press history bitmap (for release matching, assigned from _gs_press_history)
+    uint8_t                 *press_history;
 } gesture_coordinator_t;
 
 /*******************************************************************************

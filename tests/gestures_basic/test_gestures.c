@@ -4,6 +4,8 @@
 
 #include "gesture_test.h"
 
+uint8_t _gs_press_history[(NUM_KEY_POSITIONS + 7) / 8];
+
 gesture_t *gesture_get(gesture_id_t index) {
     return NULL;
 }

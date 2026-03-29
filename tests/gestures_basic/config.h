@@ -4,5 +4,4 @@
 #include "gesture_test_config.h"
 
 #define NUM_KEY_POSITIONS (MATRIX_ROWS * MATRIX_COLS)
-#define MAX_GESTURES 8
 #define GESTURE_BUFFER_SIZE 12

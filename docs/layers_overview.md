@@ -62,24 +62,42 @@ A `key_layer_t` is a tagged union with a `default_keycode`:
 
 ### Gesture layers
 
-Sparse array of `(gesture_id, outcome, keycode)` triples:
+Two formats, selected by `gesture_layer_type_t`:
+
+**Dense** -- pointer array indexed by gesture_id. Each pointer leads to a
+keycode array for that gesture's outcomes (outcome 1 at index 0). NULL
+pointer means unmapped (returns `default_keycode`). Array is sized to
+`GESTURE_COUNT`. For base layers where most/all gestures are mapped.
 
 ```c
 typedef struct {
-    uint8_t  gesture_id;
-    uint8_t  outcome;      // 1-based
-    uint16_t keycode;
-} gesture_entry_t;
-
-typedef struct {
-    uint16_t              count;
-    const gesture_entry_t *entries;  // PROGMEM
-} gesture_layer_t;
+    const uint16_t *const *map;   // map[gesture_id] -> outcome keycode array
+} dense_gesture_layer_t;
 ```
 
-Lookup matches `(gesture_id, outcome)`. If the matching entry has
-`KC_TRNS`, it falls through to the next lower layer -- per-outcome,
-not per-gesture.
+**Sparse** -- array of `(gesture_id, keycodes*)` entries. Each entry maps
+one gesture to its outcome keycodes. Linear scan lookup. For overlay
+layers where few gestures are remapped.
+
+```c
+typedef struct {
+    uint16_t         gesture_id;
+    const uint16_t  *keycodes;   // outcome keycode array
+} sparse_gesture_entry_t;
+
+typedef struct {
+    uint16_t                       count;
+    const sparse_gesture_entry_t  *entries;
+} sparse_gesture_layer_t;
+```
+
+A `gesture_layer_t` is a tagged union with a `default_keycode`:
+- `KC_TRNS` (default): fall through to lower layers
+- `KC_NO`: block
+
+Lookup uses `gesture_get(id)->num_outcomes` for bounds checking (not
+stored in the layer). `KC_TRNS` in a keycode array falls through to the
+next lower layer.
 
 ### Encoder layers
 
@@ -109,11 +127,16 @@ DEFINE_DENSE_LAYER(base_keys, KC_A, KC_B, KC_C, ...);
 // Sparse key layer (overlay)
 DEFINE_SPARSE_LAYER(nav_keys, {POS_H, KC_LEFT}, {POS_J, KC_DOWN});
 
-// Gesture layer with outcome grouping
+// Dense gesture layer (default — base layer with all gestures)
 DEFINE_GESTURE_LAYER(base_gestures,
-    HOLD_MAP(home_a,    KC_LGUI),           // 1 outcome
-    COMBO_MAP(esc_combo, KC_ESC),           // 1 outcome
-    TD_MAP(my_td, 2,    KC_LSFT, KC_X, KC_LCTL),  // 3 outcomes
+    GESTURE_MAP(home_a,    KC_LGUI),
+    GESTURE_MAP(esc_combo, KC_ESC),
+    GESTURE_MAP(my_td,     KC_LSFT, KC_X, KC_LCTL),
+);
+
+// Sparse gesture layer (overlay — only remap a few)
+DEFINE_SPARSE_GESTURE_LAYER(nav_gestures,
+    GESTURE_SPARSE_MAP(home_a, KC_HOME),
 );
 
 // Encoder layer with paired directions
@@ -124,7 +147,7 @@ DEFINE_ENCODER_LAYER(base_encoders,
 // Assemble the layer table
 DEFINE_LAYER_TABLE(
     [0] = { .key = &base_keys, .gesture = &base_gestures, .encoder = &base_encoders },
-    [1] = { .key = &nav_keys },
+    [1] = { .key = &nav_keys,  .gesture = &nav_gestures },
 );
 ```
 
@@ -134,12 +157,11 @@ DEFINE_LAYER_TABLE(
 
 ### Gesture layer mapping macros
 
-| Macro | Usage | Outcomes |
-|-------|-------|----------|
-| `HOLD_MAP(name, kc)` | Single hold outcome | 1 |
-| `COMBO_MAP(name, kc)` | Single combo outcome | 1 |
-| `TD_MAP(name, max, kc1, kc2, ...)` | Tap dance: hold(1), tap(2), hold(2), ... | 2*max-1 |
-| `ENCODER_MAP(id, ccw, cw)` | Encoder direction pair | n/a |
+| Macro | Context | Usage |
+|-------|---------|-------|
+| `GESTURE_MAP(name, kc1, ...)` | Dense layer | Keycodes in outcome order |
+| `GESTURE_SPARSE_MAP(name, kc1, ...)` | Sparse layer | Keycodes in outcome order |
+| `ENCODER_MAP(id, ccw, cw)` | Encoder layer | Encoder direction pair |
 
 ## Layer resolution
 
@@ -155,9 +177,10 @@ Iterate active layers from highest to lowest:
 
 Iterate active layers from highest to lowest:
 1. For each layer, call `gesture_layer_get(layer_id)`.
-2. Scan entries for matching `(gesture_id, outcome)`.
-3. If match has `KC_TRNS`, continue to next layer (per-outcome fallthrough).
-4. First non-`KC_TRNS` result wins.
+2. Dense: index by gesture_id, read `keycodes[outcome - 1]`.
+   Sparse: linear scan for matching gesture_id, then read outcome.
+3. NULL pointer (dense) or missing entry (sparse) returns `default_keycode`.
+4. `KC_TRNS` falls through to next layer. First non-`KC_TRNS` result wins.
 
 ### Encoder resolution
 

@@ -33,8 +33,8 @@ DEFINE_DENSE_LAYER(base_keys,
 
 /* Layer 0 gesture mappings */
 DEFINE_GESTURE_LAYER(base_gestures,
-    HOLD_MAP(th_b, KC_LSFT),
-    HOLD_MAP(th_d, KC_LCTL),
+    GESTURE_MAP(th_b, KC_LSFT),
+    GESTURE_MAP(th_d, KC_LCTL),
 );
 
 DEFINE_LAYER_TABLE(

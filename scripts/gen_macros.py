@@ -4,7 +4,7 @@
 Outputs a single header with optional sections:
 
   --layout <info.json> [layout_name]
-      Generate GESTURE_LAYOUT_CALL and NUM_KEY_POSITIONS from a QMK
+      Generate GESTURE_LAYOUT_CALL from a QMK
       keyboard's info.json (layout definition).
 
   --gestures [N]
@@ -81,7 +81,7 @@ def sanitize_label(label):
 
 
 def generate_layout(source, layout_name, keys):
-    """Generate GESTURE_LAYOUT_CALL and NUM_KEY_POSITIONS."""
+    """Generate GESTURE_LAYOUT_CALL."""
     num_keys = len(keys)
     rows = group_into_visual_rows(keys)
 
@@ -97,8 +97,7 @@ def generate_layout(source, layout_name, keys):
         lines.append(f" *   {' '.join(parts)}")
     lines.append(f" */")
     lines.append(f"")
-    lines.append(f"#define NUM_KEY_POSITIONS {num_keys}")
-    lines.append(f"")
+    lines.append(f"/* NUM_KEY_POSITIONS is computed by DEFINE_KEY_INDICES */")
 
     # --- GESTURE_LAYOUT_CALL ---
     lines.append(f"/*")
